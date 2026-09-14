@@ -1,7 +1,7 @@
 {
   "name": "Chat com token",
   "short_name": "Mensagem3D",
-  "start_url": "./chat.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F0F2F5",
   "theme_color": "#008069",
