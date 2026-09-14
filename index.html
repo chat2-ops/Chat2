@@ -580,6 +580,7 @@
     <button id="inviteBtn">+ Convidar alguém</button>
     <button id="notifyBtn" style="width:calc(100% - 24px);margin:0 12px 10px;padding:8px 0;font-size:0.78rem;background:transparent;color:var(--header);border:1px solid var(--divider);border-radius:20px;font-weight:600;">🔔 Ativar notificações</button>
     <button id="hiddenContactsBtn" style="width:calc(100% - 24px);margin:0 12px 10px;padding:8px 0;font-size:0.78rem;background:transparent;color:var(--text-dim);border:1px solid var(--divider);border-radius:20px;font-weight:500;">Contatos escondidos</button>
+    <button id="rotateTokenBtn" style="width:calc(100% - 24px);margin:0 12px 10px;padding:8px 0;font-size:0.78rem;background:transparent;color:var(--error);border:1px solid var(--divider);border-radius:20px;font-weight:500;">🔑 Trocar meu token</button>
     <div id="contactsList"></div>
   </div>
 
@@ -626,6 +627,18 @@
     <p>Reative quem você escondeu da sua lista.</p>
     <div id="hiddenContactsList"></div>
     <button class="close" id="closeHidden">Fechar</button>
+  </div>
+</div>
+
+<div class="invite-box" id="rotateBox">
+  <div class="card">
+    <h3>Token trocado</h3>
+    <p>Guarde o novo token — o antigo parou de funcionar agora. Suas conversas, contatos e histórico continuam todos aqui.</p>
+    <div class="token-result" style="display:block;">
+      <div class="code" id="rotatedTokenCode"></div>
+      <button type="button" id="copyRotatedBtn" style="background: #F7F8FA; color: var(--header); border: 1px solid var(--divider);">Copiar token</button>
+    </div>
+    <button class="close" id="closeRotate">Entendi, fechar</button>
   </div>
 </div>
 
@@ -1422,6 +1435,51 @@ document.getElementById('msgInput').addEventListener('focus', () => {
       setTimeout(() => el.scrollIntoView({ block: 'center' }), 350);
     });
   }
+});
+
+// ---------- Trocar token ----------
+document.getElementById('rotateTokenBtn').addEventListener('click', async () => {
+  const ok = confirm('Trocar seu token agora? O token atual para de funcionar na hora — use isso se acha que ele vazou.');
+  if (!ok) return;
+
+  const btn = document.getElementById('rotateTokenBtn');
+  btn.disabled = true;
+  btn.textContent = 'Trocando...';
+
+  const { data, error } = await sb.rpc('rotate_token', { p_token: myToken });
+
+  btn.disabled = false;
+  btn.textContent = '🔑 Trocar meu token';
+
+  if (error || !data) {
+    alert('Não foi possível trocar o token. Tente de novo.');
+    return;
+  }
+
+  myToken = data;
+  saveSession(myToken, myName);
+
+  if (presenceChannel) {
+    try { await presenceChannel.untrack(); } catch (e) {}
+    sb.removeChannel(presenceChannel);
+    presenceChannel = null;
+    setupPresence();
+  }
+
+  document.getElementById('rotatedTokenCode').textContent = data;
+  document.getElementById('rotateBox').classList.add('active');
+});
+
+document.getElementById('closeRotate').addEventListener('click', () => {
+  document.getElementById('rotateBox').classList.remove('active');
+});
+
+document.getElementById('copyRotatedBtn').addEventListener('click', () => {
+  const code = document.getElementById('rotatedTokenCode').textContent;
+  navigator.clipboard.writeText(code);
+  const btn = document.getElementById('copyRotatedBtn');
+  btn.textContent = 'Copiado!';
+  setTimeout(() => { btn.textContent = 'Copiar token'; }, 1500);
 });
 
 // ---------- Contatos escondidos ----------
