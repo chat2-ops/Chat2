@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#008069">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mensagem3D">
+<link rel="apple-touch-icon" href="icon-apple-touch.png">
+<title>Chat com token</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --header: #008069;
+    --header-dark: #005C4B;
+    --accent: #25D366;
+    --wallpaper: #E5DDD5;
+    --bubble-mine: #D9FDD3;
+    --bubble-theirs: #FFFFFF;
+    --panel: #FFFFFF;
+    --divider: #E9EDEF;
+    --text: #111B21;
+    --text-dim: #667781;
+    --error: #D9534F;
+    --badge: #25D366;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: #F0F2F5;
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- Access screen ---------- */
+  #access {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px;
+    padding-top: 48px;
+    background: #F0F2F5;
+    overflow-y: auto;
+  }
+
+  .access-card {
+    width: 100%;
+    max-width: 380px;
+    background: #FFFFFF;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    overflow: hidden;
+  }
+
+  .access-header {
+    background: var(--header);
+    padding: 26px 26px 22px;
+    color: white;
+  }
+
+  .access-header h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+
+  .access-header p {
+    font-size: 0.85rem;
+    margin: 0;
+    opacity: 0.9;
+    line-height: 1.4;
+  }
+
+  .access-body { padding: 22px 26px 26px; }
+
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--divider);
+    margin-bottom: 20px;
+  }
+
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+  }
+
+  .tab.active { color: var(--header); border-color: var(--accent); }
+
+  label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+
+  input[type=text] {
+    width: 100%;
+    background: #F7F8FA;
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    padding: 11px 12px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.95rem;
+    margin-bottom: 14px;
+  }
+
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+
+  button {
+    width: 100%;
+    padding: 11px 0;
+    border-radius: 24px;
+    border: none;
+    background: var(--accent);
+    color: #052F1E;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  button:hover { background: #22C55E; }
+  button:disabled { background: #A9E8C0; cursor: not-allowed; }
+
+  .error-msg { color: var(--error); font-size: 0.82rem; margin: -6px 0 14px; }
+
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  .token-result {
+    margin-top: 16px;
+    padding: 13px;
+    background: #F7F8FA;
+    border: 1px dashed #B7C0C4;
+    border-radius: 8px;
+    font-size: 0.88rem;
+  }
+
+  .token-result .code {
+    color: var(--header);
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: 0.3px;
+    word-break: break-all;
+    margin: 6px 0 10px;
+    font-family: 'SF Mono', Consolas, monospace;
+  }
+
+  .token-result button { margin-bottom: 8px; }
+
+  /* ---------- Chat screen ---------- */
+  #chatScreen {
+    display: none;
+    flex: 1;
+    flex-direction: row;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #contactsPane {
+    width: 300px;
+    min-width: 300px;
+    background: var(--panel);
+    border-right: 1px solid var(--divider);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .contacts-header {
+    background: var(--header);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: white;
+  }
+
+  .avatar {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: white;
+    position: relative;
+  }
+
+  .avatar.online::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 11px;
+    height: 11px;
+    background: #31D158;
+    border: 2px solid white;
+    border-radius: 50%;
+  }
+
+  .contacts-header .you-name { font-weight: 600; font-size: 0.95rem; }
+  .contacts-header .you-sub { font-size: 0.7rem; opacity: 0.85; }
+
+  #inviteBtn {
+    width: calc(100% - 24px);
+    margin: 10px 12px;
+    padding: 9px 0;
+    font-size: 0.82rem;
+    background: #F7F8FA;
+    color: var(--header);
+    border: 1px solid var(--divider);
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  #inviteBtn:hover { background: #EFF1F3; }
+
+  #contactsList { flex: 1; overflow-y: auto; }
+
+  .contact-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .contact-item:hover { background: #F5F6F6; }
+  .contact-item.active { background: #F0F2F5; }
+
+  .contact-info { flex: 1; min-width: 0; }
+
+  .contact-row1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .contact-name { font-weight: 600; font-size: 0.95rem; }
+  .contact-time { font-size: 0.72rem; color: var(--text-dim); }
+
+  .contact-row2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2px;
+  }
+
+  .contact-preview {
+    font-size: 0.83rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .unread-badge {
+    background: var(--badge);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 2px 7px;
+    min-width: 18px;
+    text-align: center;
+  }
+
+  .contact-item.legacy { background: #FBF6E9; }
+  .contact-item.legacy .contact-name { color: #8C6534; }
+  .contact-item.legacy .avatar { background: #C98A3E !important; }
+
+  .contacts-empty {
+    padding: 18px 16px;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .hide-contact {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    padding: 4px 6px;
+    cursor: pointer;
+    opacity: 0.5;
+    border-radius: 50%;
+  }
+  .hide-contact:hover { opacity: 1; background: #F0F2F5; }
+
+  #conversationPane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--wallpaper);
+  }
+
+  header.bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    background: var(--header);
+    color: white;
+  }
+
+  header.bar h2 { font-size: 1rem; margin: 0; font-weight: 600; }
+  header.bar .sub { font-size: 0.72rem; opacity: 0.85; }
+
+  .read-only-note {
+    padding: 8px 18px;
+    background: #FBF6E9;
+    color: #8C6534;
+    font-size: 0.78rem;
+    text-align: center;
+  }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 6%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .msg {
+    max-width: 65%;
+    padding: 7px 10px 8px;
+    border-radius: 8px;
+    background: var(--bubble-theirs);
+    align-self: flex-start;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.08);
+  }
+
+  .msg.mine { align-self: flex-end; background: var(--bubble-mine); }
+
+  .msg .sender {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--header);
+    margin-bottom: 2px;
+  }
+
+  .msg .body {
+    font-size: 0.92rem;
+    line-height: 1.35;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+  }
+
+  .msg .photo {
+    max-width: 240px;
+    max-height: 240px;
+    border-radius: 8px;
+    display: block;
+    margin-top: 2px;
+    cursor: pointer;
+  }
+
+  .attach-progress {
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    background: #F0F2F5;
+  }
+
+  .msg .time {
+    font-size: 0.66rem;
+    color: var(--text-dim);
+    text-align: right;
+    margin-top: 2px;
+  }
+
+  .delete-msg {
+    cursor: pointer;
+    margin-right: 6px;
+    opacity: 0.6;
+  }
+  .delete-msg:hover { opacity: 1; }
+
+  .read-receipt {
+    margin-left: 4px;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+  }
+  .read-receipt.read { color: #53BDEB; }
+
+  .empty-state {
+    margin: auto;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.88rem;
+    background: rgba(255,255,255,0.6);
+    padding: 14px 20px;
+    border-radius: 10px;
+  }
+
+  form#sendForm {
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #F0F2F5;
+  }
+
+  form#sendForm input {
+    margin: 0;
+    flex: 1;
+    border-radius: 22px;
+    background: white;
+  }
+
+  form#sendForm button {
+    width: auto;
+    padding: 0 20px;
+    border-radius: 22px;
+  }
+
+  .invite-box {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .invite-box.active { display: flex; }
+  .invite-box .card {
+    background: white;
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 340px;
+    width: 100%;
+  }
+  .invite-box h3 { margin: 0 0 4px; font-size: 1.05rem; }
+  .invite-box p { color: var(--text-dim); font-size: 0.85rem; margin: 0 0 14px; }
+  .invite-box .close {
+    width: auto;
+    background: transparent;
+    border: 1px solid var(--divider);
+    color: var(--text-dim);
+    margin-top: 10px;
+  }
+
+  .conn-error {
+    max-width: 380px;
+    margin: 40px auto;
+    padding: 20px;
+    background: white;
+    border: 1px solid var(--error);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: var(--error);
+    text-align: center;
+  }
+
+  .hidden-contact-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--divider);
+  }
+  .hidden-contact-row:last-child { border-bottom: none; }
+  .hidden-contact-row span { font-size: 0.9rem; }
+  .hidden-contact-row button {
+    width: auto;
+    padding: 5px 14px;
+    font-size: 0.78rem;
+    background: #F7F8FA;
+    color: var(--header);
+    border: 1px solid var(--divider);
+  }
+  .hidden-empty {
+    padding: 10px 0;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+
+  .back-btn {
+    display: none;
+    width: auto;
+    padding: 4px 10px;
+    background: transparent;
+    color: white;
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+
+  @media (max-width: 768px) {
+    #chatScreen { height: 100vh; height: 100dvh; }
+    #contactsPane { width: 100%; min-width: 100%; display: flex; }
+    #conversationPane { display: none; }
+    #chatScreen.show-conversation #contactsPane { display: none; }
+    #chatScreen.show-conversation #conversationPane { display: flex; }
+    .back-btn { display: inline-block; }
+    .msg { max-width: 82%; }
+    #messages { padding: 14px 3%; }
+  }
+</style>
+</head>
+<body>
+
+<div id="access">
+  <div class="access-card">
+    <div class="access-header">
+      <img src="logo-header.png" alt="Q+Chat" style="width:64px;height:64px;display:block;margin-bottom:10px;">
+      <h1>Chat com token</h1>
+      <p>Cada pessoa entra com um token validado no servidor — sem token, sem acesso.</p>
+    </div>
+    <div class="access-body">
+      <div class="tabs">
+        <div class="tab active" data-tab="join">Entrar com token</div>
+        <div class="tab" data-tab="create">Criar sala</div>
+      </div>
+
+      <div class="pane active" id="pane-join">
+        <label for="joinName">Seu nome</label>
+        <input type="text" id="joinName" placeholder="como vão te ver no chat" autocomplete="off">
+        <label for="joinToken">Seu token</label>
+        <input type="text" id="joinToken" placeholder="ex: 8f2a91cd0e1b" autocomplete="off">
+        <div class="error-msg" id="joinError" style="display:none;"></div>
+        <button id="joinBtn">Entrar na sala</button>
+      </div>
+
+      <div class="pane" id="pane-create">
+        <label for="creatorName">Seu nome</label>
+        <input type="text" id="creatorName" placeholder="como vão te ver no chat" autocomplete="off">
+        <label for="creatorPassword">E-mail autorizado</label>
+        <input type="email" id="creatorPassword" placeholder="e-mail" autocomplete="off">
+        <div class="error-msg" id="createError" style="display:none;"></div>
+        <button id="createBtn">Criar sala e gerar meu token</button>
+        <div class="token-result" id="createResult" style="display:none;">
+          Guarde este token — é ele que dá acesso à sala:
+          <div class="code" id="createdTokenCode"></div>
+          <button type="button" id="copyCreatedBtn" style="background: #F7F8FA; color: var(--header); border: 1px solid var(--divider);">Copiar token</button>
+          Depois de entrar, você pode gerar tokens novos para convidar outras pessoas.
+        </div>
+        <button id="enterAfterCreateBtn" style="display:none; margin-top: 10px;">Copiei o token, entrar na sala</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="chatScreen">
+  <div id="contactsPane">
+    <div class="contacts-header">
+      <div class="avatar" id="youAvatar"></div>
+      <div style="flex:1;min-width:0;">
+        <div class="you-name" id="youName"></div>
+        <div class="you-sub">seu token dá acesso a esta sala</div>
+      </div>
+      <button id="logoutBtn" title="Sair" style="width:auto;padding:6px 12px;font-size:0.75rem;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);">Sair</button>
+    </div>
+    <button id="inviteBtn">+ Convidar alguém</button>
+    <button id="notifyBtn" style="width:calc(100% - 24px);margin:0 12px 10px;padding:8px 0;font-size:0.78rem;background:transparent;color:var(--header);border:1px solid var(--divider);border-radius:20px;font-weight:600;">🔔 Ativar notificações</button>
+    <button id="hiddenContactsBtn" style="width:calc(100% - 24px);margin:0 12px 10px;padding:8px 0;font-size:0.78rem;background:transparent;color:var(--text-dim);border:1px solid var(--divider);border-radius:20px;font-weight:500;">Contatos escondidos</button>
+    <div id="contactsList"></div>
+  </div>
+
+  <div id="conversationPane">
+    <header class="bar">
+      <button type="button" class="back-btn" id="backBtn">←</button>
+      <div class="avatar" id="conversationAvatar" style="width:34px;height:34px;min-width:34px;font-size:0.85rem;"></div>
+      <div>
+        <h2 id="conversationTitle">Escolha alguém para conversar</h2>
+        <div class="sub" id="conversationSub"></div>
+      </div>
+    </header>
+
+    <div id="messages">
+      <div class="empty-state">Convide alguém ou selecione um contato à esquerda para começar.</div>
+    </div>
+
+    <form id="sendForm" style="display:none;">
+      <input type="file" id="fileInput" accept="image/*" style="display:none;">
+      <button type="button" id="attachBtn" title="Enviar foto" style="width:auto;padding:0 14px;border-radius:22px;background:#F7F8FA;color:var(--header);border:1px solid var(--divider);">📎</button>
+      <input type="text" id="msgInput" placeholder="Escreva uma mensagem" autocomplete="off">
+      <button type="submit">Enviar</button>
+    </form>
+  </div>
+</div>
+
+<div class="invite-box" id="inviteBox">
+  <div class="card">
+    <h3>Convidar alguém</h3>
+    <p>Gere um token novo e compartilhe com a pessoa. Sem ele, ninguém consegue enviar mensagem aqui.</p>
+    <button id="genInviteBtn">Gerar novo token</button>
+    <div class="token-result" id="inviteResult" style="display:none;">
+      Token gerado:
+      <div class="code" id="inviteTokenCode"></div>
+      <button type="button" id="copyInviteBtn" style="background: #F7F8FA; color: var(--header); border: 1px solid var(--divider);">Copiar token</button>
+    </div>
+    <button class="close" id="closeInvite">Fechar</button>
+  </div>
+</div>
+
+<div class="invite-box" id="hiddenBox">
+  <div class="card">
+    <h3>Contatos escondidos</h3>
+    <p>Reative quem você escondeu da sua lista.</p>
+    <div id="hiddenContactsList"></div>
+    <button class="close" id="closeHidden">Fechar</button>
+  </div>
+</div>
+
+<script>
+// --- Preencha com os dados do seu projeto Supabase ---
+const SUPABASE_URL = 'https://tjalojliilltgxxpgwkl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqYWxvamxpaWxsdGd4eHBnd2tsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyODA3MTUsImV4cCI6MjEwNDg1NjcxNX0.iXgKfZLmwa4WlEWl8pzADFnK96mY1Ou8FTH5vy-U8cY';
+// -------------------------------------------------------
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const SESSION_KEY = 'chatTokenSession';
+const SESSION_DAYS = 30;
+const VAPID_PUBLIC_KEY = 'BJDQj2CtnR5Bv7_DYbOLIl4oVjTyN9vDzKubgNEcrNgmugYKXEyocDEuhBEqbSgUM9_MH1F38DfmvCsviCjqUeg';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+let myToken = null;
+let myName = null;
+let pollTimer = null;
+let selectedContact = null; // { token, name, isLegacy }
+let contactsTimer = null;
+let latestContacts = [];
+let lastRenderedCount = 0;
+let presenceChannel = null;
+let onlineTokens = new Set();
+let sendInFlight = false;
+
+const AVATAR_COLORS = ['#F56565','#ED8936','#ECC94B','#48BB78','#38B2AC','#4299E1','#667EEA','#9F7AEA','#ED64A6'];
+
+function avatarColor(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function setAvatar(el, name) {
+  el.textContent = (name || '?').trim().charAt(0).toUpperCase();
+  el.style.background = avatarColor(name || '?');
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(`pane-${tab.dataset.tab}`).classList.add('active');
+  });
+});
+
+// ---------- Create room ----------
+document.getElementById('createBtn').addEventListener('click', async () => {
+  const nameInput = document.getElementById('creatorName');
+  const passwordInput = document.getElementById('creatorPassword');
+  const errorEl = document.getElementById('createError');
+  const name = nameInput.value.trim();
+  const password = passwordInput.value;
+  errorEl.style.display = 'none';
+
+  if (!name || !password) {
+    errorEl.textContent = 'Escreva seu nome e o e-mail antes de continuar.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('createBtn');
+  btn.disabled = true;
+  btn.textContent = 'Criando...';
+
+  const { data, error } = await sb.rpc('create_room', { p_name: name, p_email: password });
+
+  if (error) {
+    errorEl.textContent = error.message.includes('acesso negado') ? 'E-mail não autorizado.' : 'Não deu para criar a sala. ' + error.message;
+    errorEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Criar sala e gerar meu token';
+    return;
+  }
+
+  document.getElementById('createdTokenCode').textContent = data;
+  document.getElementById('createResult').style.display = 'block';
+  nameInput.disabled = true;
+  passwordInput.disabled = true;
+  btn.style.display = 'none';
+  document.getElementById('enterAfterCreateBtn').style.display = 'block';
+
+  myToken = data;
+  myName = name;
+  saveSession(myToken, myName);
+});
+
+document.getElementById('enterAfterCreateBtn').addEventListener('click', enterChat);
+
+document.getElementById('copyCreatedBtn').addEventListener('click', () => {
+  const code = document.getElementById('createdTokenCode').textContent;
+  navigator.clipboard.writeText(code);
+  const btn = document.getElementById('copyCreatedBtn');
+  btn.textContent = 'Copiado!';
+  setTimeout(() => { btn.textContent = 'Copiar token'; }, 1500);
+});
+
+// ---------- Join room ----------
+document.getElementById('joinBtn').addEventListener('click', async () => {
+  const nameInput = document.getElementById('joinName');
+  const tokenInput = document.getElementById('joinToken');
+  const errorEl = document.getElementById('joinError');
+  const name = nameInput.value.trim();
+  const token = tokenInput.value.trim();
+  errorEl.style.display = 'none';
+
+  if (!name || !token) {
+    errorEl.textContent = 'Preencha seu nome e o token.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('joinBtn');
+  btn.disabled = true;
+  btn.textContent = 'Verificando...';
+
+  const { data, error } = await sb.rpc('join_room', { p_token: token, p_name: name });
+
+  if (error || !data) {
+    errorEl.textContent = 'Esse token não é válido nesta sala.';
+    errorEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Entrar na sala';
+    return;
+  }
+
+  myToken = token;
+  myName = name;
+  saveSession(myToken, myName);
+  enterChat();
+});
+
+// ---------- Chat ----------
+function enterChat() {
+  document.getElementById('access').style.display = 'none';
+  document.getElementById('chatScreen').style.display = 'flex';
+  document.getElementById('youName').textContent = myName;
+  setAvatar(document.getElementById('youAvatar'), myName);
+  loadContacts();
+  contactsTimer = setInterval(loadContacts, 7000);
+  setupPush();
+  setupPresence();
+}
+
+// ---------- Presença (quem está online) ----------
+function setupPresence() {
+  presenceChannel = sb.channel('presence-mensagem3d', {
+    config: { presence: { key: myToken } }
+  });
+
+  presenceChannel.on('presence', { event: 'sync' }, () => {
+    const state = presenceChannel.presenceState();
+    onlineTokens = new Set(Object.keys(state));
+    updateOnlineIndicators();
+  });
+
+  presenceChannel.subscribe(async (status) => {
+    if (status === 'SUBSCRIBED') {
+      await presenceChannel.track({ name: myName, online_at: new Date().toISOString() });
+    }
+  });
+}
+
+function updateOnlineIndicators() {
+  document.querySelectorAll('#contactsList .contact-item[data-contact-token]').forEach(el => {
+    const avatar = el.querySelector('.avatar');
+    if (!avatar) return;
+    avatar.classList.toggle('online', onlineTokens.has(el.dataset.contactToken));
+  });
+
+  if (selectedContact && !selectedContact.isLegacy) {
+    const isOnline = onlineTokens.has(selectedContact.token);
+    document.getElementById('conversationAvatar').classList.toggle('online', isOnline);
+    document.getElementById('conversationSub').textContent = isOnline ? 'online' : '';
+  }
+}
+
+// ---------- Notificações push ----------
+async function setupPush() {
+  const btn = document.getElementById('notifyBtn');
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    btn.textContent = 'Notificações não suportadas neste navegador';
+    btn.disabled = true;
+    return;
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.register('sw.js');
+    const existingSub = await reg.pushManager.getSubscription();
+    if (existingSub && Notification.permission === 'granted') {
+      const subJson = existingSub.toJSON();
+      const { error: resyncError } = await sb.rpc('save_push_subscription', {
+        p_token: myToken,
+        p_endpoint: subJson.endpoint,
+        p_p256dh: subJson.keys.p256dh,
+        p_auth: subJson.keys.auth
+      });
+      if (!resyncError) btn.textContent = '🔔 Notificações ativadas';
+    }
+  } catch (e) {
+    // segue sem quebrar o chat
+  }
+
+  btn.addEventListener('click', async () => {
+    if (Notification.permission === 'denied') {
+      alert('As notificações estão bloqueadas nas configurações do navegador/app. Ative manualmente lá.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Ativando...';
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        btn.textContent = '🔔 Ativar notificações';
+        btn.disabled = false;
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+      }
+
+      const subJson = sub.toJSON();
+      const { error: saveError } = await sb.rpc('save_push_subscription', {
+        p_token: myToken,
+        p_endpoint: subJson.endpoint,
+        p_p256dh: subJson.keys.p256dh,
+        p_auth: subJson.keys.auth
+      });
+
+      if (saveError) {
+        btn.textContent = '🔔 Ativar notificações';
+        alert('Não foi possível salvar a inscrição no servidor. ' + saveError.message);
+        btn.disabled = false;
+        return;
+      }
+
+      btn.textContent = '🔔 Notificações ativadas';
+    } catch (e) {
+      btn.textContent = '🔔 Ativar notificações';
+      alert('Não foi possível ativar. ' + (e && e.message ? e.message : ''));
+    }
+    btn.disabled = false;
+  });
+}
+
+function showConnectionBanner(show) {
+  let banner = document.getElementById('connBanner');
+  if (show) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'connBanner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:50;background:#8C6534;color:white;font-size:0.75rem;text-align:center;padding:5px 10px;';
+      banner.textContent = 'Sem conexão — tentando de novo...';
+      document.body.appendChild(banner);
+    }
+  } else if (banner) {
+    banner.remove();
+  }
+}
+
+async function loadContacts() {
+  const [{ data, error }, legacyResult] = await Promise.all([
+    sb.rpc('get_contacts', { p_token: myToken }),
+    sb.rpc('get_legacy_messages', { p_token: myToken })
+  ]);
+  const listEl = document.getElementById('contactsList');
+
+  if (error) {
+    const isInvalidToken = error.message && error.message.includes('token invalido');
+    if (isInvalidToken) {
+      clearInterval(contactsTimer);
+      clearInterval(pollTimer);
+      clearSession();
+      document.getElementById('chatScreen').innerHTML = `<div class="conn-error">Seu token deixou de ser válido nesta sala.</div>`;
+      return;
+    }
+    // erro de rede/conexão: não apaga a sessão, só avisa e tenta de novo no próximo ciclo
+    showConnectionBanner(true);
+    return;
+  }
+  showConnectionBanner(false);
+
+  latestContacts = data || [];
+
+  const legacyData = (!legacyResult.error && legacyResult.data) ? legacyResult.data : [];
+  const legacyLast = legacyData.length > 0 ? legacyData[legacyData.length - 1] : null;
+
+  if (latestContacts.length === 0 && !legacyLast) {
+    listEl.innerHTML = '<div class="contacts-empty">Ainda não tem ninguém na sala. Toque em "Convidar alguém" para trazer alguém.</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+
+  if (legacyLast) {
+    const div = document.createElement('div');
+    div.className = 'contact-item legacy' + (selectedContact && selectedContact.isLegacy ? ' active' : '');
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = '🕓';
+
+    const info = document.createElement('div');
+    info.className = 'contact-info';
+    info.innerHTML = `
+      <div class="contact-row1">
+        <span class="contact-name">Histórico da sala</span>
+        <span class="contact-time">${fmtTime(legacyLast.created_at)}</span>
+      </div>
+      <div class="contact-row2">
+        <span class="contact-preview">${escapeHtml(legacyLast.body)}</span>
+      </div>`;
+
+    div.appendChild(avatar);
+    div.appendChild(info);
+    div.addEventListener('click', () => selectContact('__legacy__', 'Histórico da sala', true));
+    listEl.appendChild(div);
+  }
+
+  latestContacts.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'contact-item' + (selectedContact && !selectedContact.isLegacy && selectedContact.token === c.contact_token ? ' active' : '');
+    div.dataset.contactToken = c.contact_token;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar' + (onlineTokens.has(c.contact_token) ? ' online' : '');
+    setAvatar(avatar, c.contact_name);
+
+    const info = document.createElement('div');
+    info.className = 'contact-info';
+    const preview = c.last_message ? escapeHtml(c.last_message) : 'Toque para conversar';
+    const time = c.last_message_at ? fmtTime(c.last_message_at) : '';
+    const badge = c.unread_count > 0 ? `<span class="unread-badge">${c.unread_count}</span>` : '';
+    info.innerHTML = `
+      <div class="contact-row1">
+        <span class="contact-name">${escapeHtml(c.contact_name)}</span>
+        <span class="contact-time">${time}</span>
+      </div>
+      <div class="contact-row2">
+        <span class="contact-preview">${preview}</span>
+        ${badge}
+      </div>`;
+
+    div.appendChild(avatar);
+    div.appendChild(info);
+
+    const hideBtn = document.createElement('span');
+    hideBtn.className = 'hide-contact';
+    hideBtn.title = 'Esconder contato';
+    hideBtn.textContent = '✕';
+    hideBtn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const ok = confirm(`Esconder "${c.contact_name}" da sua lista? Se ela mandar mensagem de novo, volta a aparecer.`);
+      if (!ok) return;
+      await sb.rpc('hide_contact', { p_token: myToken, p_contact_token: c.contact_token });
+      if (selectedContact && !selectedContact.isLegacy && selectedContact.token === c.contact_token) {
+        selectedContact = null;
+        document.getElementById('chatScreen').classList.remove('show-conversation');
+        document.getElementById('conversationTitle').textContent = 'Escolha alguém para conversar';
+        document.getElementById('conversationSub').textContent = '';
+        document.getElementById('sendForm').style.display = 'none';
+        renderMessages([]);
+      }
+      loadContacts();
+    });
+    div.appendChild(hideBtn);
+
+    div.addEventListener('click', () => selectContact(c.contact_token, c.contact_name, false));
+    listEl.appendChild(div);
+  });
+}
+
+async function selectContact(token, name, isLegacy) {
+  selectedContact = { token, name, isLegacy: !!isLegacy };
+  document.getElementById('chatScreen').classList.add('show-conversation');
+  document.getElementById('conversationTitle').textContent = name;
+  document.getElementById('conversationSub').textContent = isLegacy ? 'somente leitura' : '';
+  setAvatar(document.getElementById('conversationAvatar'), name);
+  document.getElementById('sendForm').style.display = isLegacy ? 'none' : 'flex';
+
+  const existingNote = document.getElementById('readOnlyNote');
+  if (existingNote) existingNote.remove();
+  if (isLegacy) {
+    const note = document.createElement('div');
+    note.id = 'readOnlyNote';
+    note.className = 'read-only-note';
+    note.style.display = 'flex';
+    note.style.alignItems = 'center';
+    note.style.justifyContent = 'center';
+    note.style.gap = '10px';
+    note.innerHTML = `<span>Mensagens de antes das conversas privadas existirem.</span>
+      <button id="clearHistoryBtn" type="button" style="width:auto;padding:4px 12px;font-size:0.75rem;background:var(--error);color:white;border-radius:14px;">Apagar histórico</button>`;
+    document.getElementById('conversationPane').insertBefore(note, document.getElementById('messages'));
+  }
+
+  // limpa o selo de não lidas na hora, sem esperar o próximo ciclo
+  if (!isLegacy) {
+    const el = document.querySelector(`.contact-item[data-contact-token="${token}"]`);
+    if (el) {
+      const badge = el.querySelector('.unread-badge');
+      if (badge) badge.remove();
+    }
+    await sb.rpc('mark_read', { p_token: myToken, p_with_token: token });
+  }
+
+  updateOnlineIndicators();
+
+  lastRenderedCount = 0;
+  loadContacts();
+  loadConversation();
+  clearInterval(pollTimer);
+  pollTimer = setInterval(loadConversation, 5000);
+}
+
+function renderMessages(messages) {
+  const container = document.getElementById('messages');
+  container.innerHTML = '';
+
+  if (!messages || messages.length === 0) {
+    container.innerHTML = '<div class="empty-state">Nenhuma mensagem ainda. Escreva a primeira.</div>';
+    return;
+  }
+
+  messages.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'msg' + (m.is_mine ? ' mine' : '');
+    const senderLine = m.is_mine ? '' : `<div class="sender">${escapeHtml(m.name)}</div>`;
+    const photoLine = m.image_url ? `<img class="photo" src="${escapeHtml(m.image_url)}" onclick="window.open('${escapeHtml(m.image_url)}','_blank')">` : '';
+    const bodyLine = m.body ? `<div class="body">${escapeHtml(m.body)}</div>` : '';
+    const deleteLine = m.is_mine ? `<span class="delete-msg" data-id="${m.id}" title="Apagar">🗑</span>` : '';
+    let readReceipt = '';
+    if (m.is_mine && typeof m.is_read !== 'undefined') {
+      readReceipt = m.is_read
+        ? '<span class="read-receipt read" title="Lida">✓✓</span>'
+        : '<span class="read-receipt" title="Enviada">✓</span>';
+    }
+    div.innerHTML = `${senderLine}${photoLine}${bodyLine}<div class="time">${deleteLine}${fmtTime(m.created_at)}${readReceipt}</div>`;
+    container.appendChild(div);
+  });
+
+  container.scrollTop = container.scrollHeight;
+}
+
+async function loadConversation() {
+  if (!selectedContact || sendInFlight) return;
+  const rpcName = selectedContact.isLegacy ? 'get_legacy_messages' : 'get_conversation';
+  const params = selectedContact.isLegacy
+    ? { p_token: myToken }
+    : { p_token: myToken, p_with_token: selectedContact.token };
+  const { data, error } = await sb.rpc(rpcName, params);
+  if (error) {
+    if (!(error.message && error.message.includes('token invalido'))) {
+      showConnectionBanner(true);
+    }
+    return;
+  }
+  showConnectionBanner(false);
+  const isNewCount = data && data.length !== lastRenderedCount;
+  lastRenderedCount = data ? data.length : 0;
+  renderMessages(data);
+  if (!selectedContact.isLegacy && isNewCount) sb.rpc('mark_read', { p_token: myToken, p_with_token: selectedContact.token });
+}
+
+document.getElementById('sendForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if (!text || !myToken || !selectedContact) return;
+
+  input.value = '';
+
+  // mostra a mensagem na hora, antes da resposta do servidor
+  const container = document.getElementById('messages');
+  const emptyState = container.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+  const tempDiv = document.createElement('div');
+  tempDiv.className = 'msg mine';
+  tempDiv.innerHTML = `<div class="body">${escapeHtml(text)}</div><div class="time">${fmtTime(new Date().toISOString())}<span class="read-receipt" title="Enviando...">🕓</span></div>`;
+  container.appendChild(tempDiv);
+  container.scrollTop = container.scrollHeight;
+
+  sendInFlight = true;
+  const { data, error } = await sb.rpc('send_message', { p_token: myToken, p_to_token: selectedContact.token, p_text: text });
+  if (error || !data) {
+    sendInFlight = false;
+    tempDiv.remove();
+    input.value = text;
+    alert('Não foi possível enviar. Confira se o token ainda é válido.');
+    return;
+  }
+  sendInFlight = false;
+  loadConversation();
+});
+
+document.getElementById('backBtn').addEventListener('click', () => {
+  document.getElementById('chatScreen').classList.remove('show-conversation');
+});
+
+// ---------- Fotos ----------
+document.getElementById('attachBtn').addEventListener('click', () => {
+  if (!selectedContact || selectedContact.isLegacy) return;
+  document.getElementById('fileInput').click();
+});
+
+function compressImage(file, maxDimension = 1600, quality = 0.8) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          if (width >= height) {
+            height = Math.round(height * (maxDimension / width));
+            width = maxDimension;
+          } else {
+            width = Math.round(width * (maxDimension / height));
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob && blob.size < file.size) {
+            resolve(blob);
+          } else {
+            resolve(file); // a compactada ficou maior ou falhou, usa a original
+          }
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => resolve(file); // não é imagem legível pelo canvas, usa original
+      img.src = url;
+    } catch (e) {
+      resolve(file);
+    }
+  });
+}
+
+document.getElementById('fileInput').addEventListener('change', async () => {
+  const fileInput = document.getElementById('fileInput');
+  const file = fileInput.files[0];
+  if (!file || !myToken || !selectedContact || selectedContact.isLegacy) return;
+
+  const attachBtn = document.getElementById('attachBtn');
+  attachBtn.disabled = true;
+  attachBtn.textContent = '⏳';
+
+  const compressed = await compressImage(file);
+  const ext = compressed === file ? file.name.split('.').pop() : 'jpg';
+  const path = `${myToken}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error: uploadError } = await sb.storage.from('chat-images').upload(path, compressed);
+
+  if (uploadError) {
+    alert('Não foi possível enviar a foto. ' + uploadError.message);
+    attachBtn.disabled = false;
+    attachBtn.textContent = '📎';
+    fileInput.value = '';
+    return;
+  }
+
+  const { data: urlData } = sb.storage.from('chat-images').getPublicUrl(path);
+
+  const { data, error } = await sb.rpc('send_message', {
+    p_token: myToken,
+    p_to_token: selectedContact.token,
+    p_text: '',
+    p_image_url: urlData.publicUrl
+  });
+
+  attachBtn.disabled = false;
+  attachBtn.textContent = '📎';
+  fileInput.value = '';
+
+  if (error || !data) {
+    alert('Não foi possível enviar a foto. Confira se o token ainda é válido.');
+    return;
+  }
+
+  loadConversation();
+});
+
+// ---------- Apagar mensagem própria ----------
+document.getElementById('messages').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.delete-msg');
+  if (!btn) return;
+  const ok = confirm('Apagar esta mensagem?');
+  if (!ok) return;
+  const { error } = await sb.rpc('delete_message', { p_token: myToken, p_message_id: Number(btn.dataset.id) });
+  if (error) {
+    alert('Não foi possível apagar a mensagem.');
+    return;
+  }
+  loadConversation();
+});
+
+// ---------- Apagar histórico ----------
+document.getElementById('conversationPane').addEventListener('click', async (e) => {
+  if (e.target && e.target.id === 'clearHistoryBtn') {
+    const ok = confirm('Isso apaga o histórico da sala para todo mundo, sem volta. Confirma?');
+    if (!ok) return;
+    const { error } = await sb.rpc('clear_legacy_messages', { p_token: myToken });
+    if (error) {
+      alert('Não foi possível apagar o histórico.');
+      return;
+    }
+    loadContacts();
+    loadConversation();
+  }
+});
+
+// ---------- Invite ----------
+document.getElementById('inviteBtn').addEventListener('click', () => {
+  document.getElementById('inviteBox').classList.add('active');
+});
+
+document.getElementById('closeInvite').addEventListener('click', () => {
+  document.getElementById('inviteBox').classList.remove('active');
+  document.getElementById('inviteResult').style.display = 'none';
+  document.getElementById('genInviteBtn').style.display = 'block';
+});
+
+document.getElementById('genInviteBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('genInviteBtn');
+  btn.disabled = true;
+  btn.textContent = 'Gerando...';
+
+  const { data, error } = await sb.rpc('generate_invite', { p_token: myToken });
+
+  if (error) {
+    alert('Não foi possível gerar o convite.');
+    btn.disabled = false;
+    btn.textContent = 'Gerar novo token';
+    return;
+  }
+
+  document.getElementById('inviteTokenCode').textContent = data;
+  document.getElementById('inviteResult').style.display = 'block';
+  btn.style.display = 'none';
+});
+
+document.getElementById('copyInviteBtn').addEventListener('click', () => {
+  const code = document.getElementById('inviteTokenCode').textContent;
+  navigator.clipboard.writeText(code);
+  const btn = document.getElementById('copyInviteBtn');
+  btn.textContent = 'Copiado!';
+  setTimeout(() => { btn.textContent = 'Copiar token'; }, 1500);
+});
+
+// ---------- Sessão salva (fica logado) ----------
+function saveSession(token, name) {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, name, savedAt: Date.now() }));
+  } catch (e) { /* localStorage indisponível, segue sem salvar */ }
+}
+
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    const ageMs = Date.now() - (session.savedAt || 0);
+    if (ageMs > SESSION_DAYS * 24 * 60 * 60 * 1000) {
+      clearSession();
+      return null;
+    }
+    return session;
+  } catch (e) {
+    return null;
+  }
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  const ok = confirm('Sair? Você vai precisar do token de novo para entrar.');
+  if (!ok) return;
+  clearInterval(contactsTimer);
+  clearInterval(pollTimer);
+
+  if (presenceChannel) {
+    try { await presenceChannel.untrack(); } catch (e) {}
+    sb.removeChannel(presenceChannel);
+    presenceChannel = null;
+  }
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await sb.rpc('delete_push_subscription', { p_endpoint: sub.endpoint });
+          await sub.unsubscribe();
+        }
+      }
+    }
+  } catch (e) { /* segue o logout mesmo se isso falhar */ }
+
+  clearSession();
+  myToken = null;
+  myName = null;
+  selectedContact = null;
+  document.getElementById('joinName').value = '';
+  document.getElementById('joinToken').value = '';
+  document.getElementById('chatScreen').style.display = 'none';
+  document.getElementById('access').style.display = 'flex';
+});
+
+// tenta entrar sozinho se já tiver sessão salva
+(function autoLogin() {
+  const session = loadSession();
+  if (session && session.token && session.name) {
+    myToken = session.token;
+    myName = session.name;
+    enterChat();
+  }
+})();
+
+// ---------- Mantém o campo de mensagem visível acima do teclado no iOS ----------
+if (window.visualViewport) {
+  const applyViewportHeight = () => {
+    const chatScreen = document.getElementById('chatScreen');
+    if (chatScreen && chatScreen.style.display === 'flex') {
+      const vv = window.visualViewport;
+      chatScreen.style.position = 'fixed';
+      chatScreen.style.left = '0px';
+      chatScreen.style.top = vv.offsetTop + 'px';
+      chatScreen.style.width = vv.width + 'px';
+      chatScreen.style.height = vv.height + 'px';
+      window.scrollTo(0, 0);
+    }
+  };
+  window.visualViewport.addEventListener('resize', applyViewportHeight);
+  window.visualViewport.addEventListener('scroll', applyViewportHeight);
+  applyViewportHeight();
+}
+
+// reforço: quando o campo de mensagem ganha foco, garante que ele fique visível
+document.getElementById('msgInput').addEventListener('focus', () => {
+  setTimeout(() => {
+    if (window.visualViewport) {
+      const chatScreen = document.getElementById('chatScreen');
+      const vv = window.visualViewport;
+      chatScreen.style.position = 'fixed';
+      chatScreen.style.left = '0px';
+      chatScreen.style.top = vv.offsetTop + 'px';
+      chatScreen.style.width = vv.width + 'px';
+      chatScreen.style.height = vv.height + 'px';
+    }
+    document.getElementById('sendForm').scrollIntoView({ block: 'end' });
+  }, 350);
+});
+
+['joinName', 'joinToken', 'creatorName'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('focus', () => {
+      setTimeout(() => el.scrollIntoView({ block: 'center' }), 350);
+    });
+  }
+});
+
+// ---------- Contatos escondidos ----------
+document.getElementById('hiddenContactsBtn').addEventListener('click', async () => {
+  document.getElementById('hiddenBox').classList.add('active');
+  await loadHiddenContacts();
+});
+
+document.getElementById('closeHidden').addEventListener('click', () => {
+  document.getElementById('hiddenBox').classList.remove('active');
+});
+
+async function loadHiddenContacts() {
+  const listEl = document.getElementById('hiddenContactsList');
+  listEl.innerHTML = '<div class="hidden-empty">Carregando...</div>';
+
+  const { data, error } = await sb.rpc('list_hidden_contacts', { p_token: myToken });
+  if (error) {
+    listEl.innerHTML = '<div class="hidden-empty">Não foi possível carregar.</div>';
+    return;
+  }
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="hidden-empty">Nenhum contato escondido.</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  data.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'hidden-contact-row';
+    row.innerHTML = `<span>${escapeHtml(c.contact_name)}</span>`;
+    const btn = document.createElement('button');
+    btn.textContent = 'Reativar';
+    btn.addEventListener('click', async () => {
+      await sb.rpc('unhide_contact', { p_token: myToken, p_contact_token: c.contact_token });
+      loadHiddenContacts();
+      loadContacts();
+    });
+    row.appendChild(btn);
+    listEl.appendChild(row);
+  });
+}
+</script>
+</body>
+</html>
