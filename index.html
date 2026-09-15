@@ -1841,11 +1841,50 @@ document.getElementById('msgInput').addEventListener('focus', () => {
 });
 
 // ---------- Definir/trocar senha de recuperação a qualquer momento ----------
+// Confere se a chave ativa neste aparelho está realmente decifrando as conversas,
+// antes de deixar salvar ela como a senha de recuperação "oficial".
+async function checkCurrentKeyHealthy() {
+  const { data, error } = await sb.rpc('get_contacts', { p_token: myToken });
+  if (error || !data) return { checked: 0, failedNames: [] };
+
+  const failedNames = [];
+  for (const c of data) {
+    if (!c.last_message || !c.last_message_nonce || !c.contact_public_key) continue;
+    const sk = await getSharedKeyFor(c.contact_token, c.contact_public_key);
+    if (!sk) { failedNames.push(c.contact_name); continue; }
+    try {
+      await e2eeDecrypt(sk, c.last_message, c.last_message_nonce);
+    } catch (e) {
+      failedNames.push(c.contact_name);
+    }
+  }
+  return { checked: data.length, failedNames };
+}
+
 document.getElementById('setRecoveryMenuBtn').addEventListener('click', async () => {
   if (!myKeyPair) {
     alert('Suas chaves ainda não terminaram de carregar. Espera alguns segundos e tenta de novo.');
     return;
   }
+
+  const btnCheck = document.getElementById('setRecoveryMenuBtn');
+  btnCheck.disabled = true;
+  btnCheck.textContent = 'Verificando...';
+  const health = await checkCurrentKeyHealthy();
+  btnCheck.disabled = false;
+  btnCheck.textContent = '🛡️ Senha de recuperação';
+
+  if (health.failedNames.length > 0) {
+    const nomes = health.failedNames.join(', ');
+    const proceedAnyway = confirm(
+      `Atenção: a chave ativa neste aparelho não está conseguindo abrir as mensagens recentes de: ${nomes}.\n\n` +
+      `Isso é sinal de que essa NÃO é a chave certa pra salvar como recuperação — salvar agora pode travar você nessa chave desatualizada.\n\n` +
+      `Recomendado: cancelar e resolver isso primeiro (ou entrar no aparelho que já está lendo essas conversas normalmente).\n\n` +
+      `Quer salvar mesmo assim?`
+    );
+    if (!proceedAnyway) return;
+  }
+
   const password = await setRecoveryPasswordFlow();
   if (!password) return;
 
