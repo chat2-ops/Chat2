@@ -581,6 +581,7 @@
     <button id="notifyBtn" style="width:calc(100% - 24px);margin:0 12px 10px;padding:8px 0;font-size:0.78rem;background:transparent;color:var(--header);border:1px solid var(--divider);border-radius:20px;font-weight:600;">🔔 Ativar notificações</button>
     <button id="hiddenContactsBtn" style="width:calc(100% - 24px);margin:0 12px 10px;padding:8px 0;font-size:0.78rem;background:transparent;color:var(--text-dim);border:1px solid var(--divider);border-radius:20px;font-weight:500;">Contatos escondidos</button>
     <button id="rotateTokenBtn" style="width:calc(100% - 24px);margin:0 12px 10px;padding:8px 0;font-size:0.78rem;background:transparent;color:var(--error);border:1px solid var(--divider);border-radius:20px;font-weight:500;">🔑 Trocar meu token</button>
+    <button id="setRecoveryMenuBtn" style="width:calc(100% - 24px);margin:0 12px 10px;padding:8px 0;font-size:0.78rem;background:transparent;color:var(--header);border:1px solid var(--divider);border-radius:20px;font-weight:500;">🛡️ Senha de recuperação</button>
     <div id="contactsList"></div>
   </div>
 
@@ -642,6 +643,31 @@
   </div>
 </div>
 
+<div class="invite-box" id="setRecoveryBox">
+  <div class="card">
+    <h3>Proteja suas mensagens</h3>
+    <p>Crie uma senha de recuperação. Se você trocar de celular ou limpar o navegador, é ela que traz suas conversas cifradas de volta — sem essa senha, não tem como recuperar.</p>
+    <label for="recoveryPasswordInput" style="display:block;font-size:0.78rem;color:var(--text-dim);margin-bottom:5px;font-weight:500;">Senha de recuperação</label>
+    <input type="password" id="recoveryPasswordInput" placeholder="crie uma senha" autocomplete="off" style="width:100%;background:#F7F8FA;border:1px solid var(--divider);border-radius:8px;padding:11px 12px;margin-bottom:14px;font-family:inherit;font-size:0.95rem;">
+    <label for="recoveryPasswordConfirm" style="display:block;font-size:0.78rem;color:var(--text-dim);margin-bottom:5px;font-weight:500;">Confirme a senha</label>
+    <input type="password" id="recoveryPasswordConfirm" placeholder="digite de novo" autocomplete="off" style="width:100%;background:#F7F8FA;border:1px solid var(--divider);border-radius:8px;padding:11px 12px;margin-bottom:14px;font-family:inherit;font-size:0.95rem;">
+    <div class="error-msg" id="setRecoveryError" style="display:none;"></div>
+    <button id="saveRecoveryBtn">Salvar senha de recuperação</button>
+    <button class="close" id="skipRecoveryBtn">Agora não</button>
+  </div>
+</div>
+
+<div class="invite-box" id="recoverKeyBox">
+  <div class="card">
+    <h3>Recuperar suas mensagens</h3>
+    <p>Esse token já tem mensagens cifradas de outro aparelho. Digite sua senha de recuperação pra continuar lendo elas aqui.</p>
+    <input type="password" id="recoverPasswordInput" placeholder="senha de recuperação" autocomplete="off" style="width:100%;background:#F7F8FA;border:1px solid var(--divider);border-radius:8px;padding:11px 12px;margin-bottom:14px;font-family:inherit;font-size:0.95rem;">
+    <div class="error-msg" id="recoverKeyError" style="display:none;"></div>
+    <button id="tryRecoverBtn">Recuperar</button>
+    <button class="close" id="skipRecoverBtn">Não sei a senha, começar do zero</button>
+  </div>
+</div>
+
 <script>
 // --- Preencha com os dados do seu projeto Supabase ---
 const SUPABASE_URL = 'https://tjalojliilltgxxpgwkl.supabase.co';
@@ -683,6 +709,91 @@ function e2eeBase64ToBuf(base64) {
   return bytes.buffer;
 }
 
+function setRecoveryPasswordFlow() {
+  const box = document.getElementById('setRecoveryBox');
+  const pass1 = document.getElementById('recoveryPasswordInput');
+  const pass2 = document.getElementById('recoveryPasswordConfirm');
+  const errorEl = document.getElementById('setRecoveryError');
+  const saveBtn = document.getElementById('saveRecoveryBtn');
+  const skipBtn = document.getElementById('skipRecoveryBtn');
+  pass1.value = ''; pass2.value = ''; errorEl.style.display = 'none';
+  box.classList.add('active');
+
+  return new Promise((resolve) => {
+    function cleanup() {
+      saveBtn.removeEventListener('click', onSave);
+      skipBtn.removeEventListener('click', onSkip);
+      box.classList.remove('active');
+    }
+    function onSave() {
+      const p1 = pass1.value;
+      const p2 = pass2.value;
+      if (!p1 || p1.length < 4) {
+        errorEl.textContent = 'A senha precisa ter pelo menos 4 caracteres.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      if (p1 !== p2) {
+        errorEl.textContent = 'As senhas não são iguais.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      cleanup();
+      resolve(p1);
+    }
+    function onSkip() {
+      cleanup();
+      resolve(null);
+    }
+    saveBtn.addEventListener('click', onSave);
+    skipBtn.addEventListener('click', onSkip);
+  });
+}
+
+function recoverPrivateKeyFlow(saltB64, ivB64, encKeyB64) {
+  const box = document.getElementById('recoverKeyBox');
+  const passInput = document.getElementById('recoverPasswordInput');
+  const errorEl = document.getElementById('recoverKeyError');
+  const tryBtn = document.getElementById('tryRecoverBtn');
+  const skipBtn = document.getElementById('skipRecoverBtn');
+  passInput.value = '';
+  errorEl.style.display = 'none';
+  box.classList.add('active');
+
+  return new Promise((resolve) => {
+    function cleanup() {
+      tryBtn.removeEventListener('click', onTry);
+      skipBtn.removeEventListener('click', onSkip);
+    }
+    async function onTry() {
+      const pwd = passInput.value;
+      if (!pwd) return;
+      tryBtn.disabled = true;
+      tryBtn.textContent = 'Verificando...';
+      try {
+        const jwkStr = await decryptPrivateKeyWithPassword(saltB64, ivB64, encKeyB64, pwd);
+        cleanup();
+        box.classList.remove('active');
+        resolve(jwkStr);
+      } catch (e) {
+        errorEl.textContent = 'Senha incorreta. Tenta de novo.';
+        errorEl.style.display = 'block';
+        tryBtn.disabled = false;
+        tryBtn.textContent = 'Recuperar';
+      }
+    }
+    function onSkip() {
+      const ok = confirm('Sem a senha, as mensagens cifradas antigas ficam ilegíveis pra sempre neste aparelho. Criar uma identidade nova mesmo assim?');
+      if (!ok) return;
+      cleanup();
+      box.classList.remove('active');
+      resolve(null);
+    }
+    tryBtn.addEventListener('click', onTry);
+    skipBtn.addEventListener('click', onSkip);
+  });
+}
+
 async function ensureE2eeKeys() {
   if (!window.crypto || !window.crypto.subtle) return false; // navegador sem suporte
   try {
@@ -698,20 +809,52 @@ async function ensureE2eeKeys() {
       );
       myKeyPair = { privateKey, publicKey };
       myPublicKeyJWK = savedPub;
-    } else {
-      const pair = await crypto.subtle.generateKey(
-        { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']
-      );
-      const pubJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
-      const privJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
-      localStorage.setItem(E2EE_PRIVATE_KEY_STORAGE, JSON.stringify(privJwk));
-      localStorage.setItem(E2EE_PUBLIC_KEY_STORAGE, JSON.stringify(pubJwk));
-      myKeyPair = pair;
-      myPublicKeyJWK = JSON.stringify(pubJwk);
+      await sb.rpc('set_public_key', { p_token: myToken, p_public_key: myPublicKeyJWK });
+      return true;
     }
 
-    // garante que o servidor está com a mesma chave pública que temos localmente
+    // não tem chave neste aparelho: checa se existe backup de recuperação no servidor
+    let recoveredJwkStr = null;
+    try {
+      const { data: rec } = await sb.rpc('get_key_recovery', { p_token: myToken });
+      const row = Array.isArray(rec) ? rec[0] : rec;
+      if (row && row.recovery_encrypted_key) {
+        recoveredJwkStr = await recoverPrivateKeyFlow(row.recovery_salt, row.recovery_iv, row.recovery_encrypted_key);
+      }
+    } catch (e) { /* sem backup ou erro ao checar, segue pro caminho de chave nova */ }
+
+    let privJwk, pubJwk, pair;
+    if (recoveredJwkStr) {
+      privJwk = JSON.parse(recoveredJwkStr);
+      const privateKey = await crypto.subtle.importKey('jwk', privJwk, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+      pubJwk = Object.assign({}, privJwk);
+      delete pubJwk.d;
+      pubJwk.key_ops = [];
+      const publicKey = await crypto.subtle.importKey('jwk', pubJwk, { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+      myKeyPair = { privateKey, publicKey };
+      localStorage.setItem(E2EE_PRIVATE_KEY_STORAGE, JSON.stringify(privJwk));
+      localStorage.setItem(E2EE_PUBLIC_KEY_STORAGE, JSON.stringify(pubJwk));
+      myPublicKeyJWK = JSON.stringify(pubJwk);
+      await sb.rpc('set_public_key', { p_token: myToken, p_public_key: myPublicKeyJWK });
+      return true;
+    }
+
+    // chave nova (primeira vez, ou optou por não recuperar)
+    pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+    pubJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+    privJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+    localStorage.setItem(E2EE_PRIVATE_KEY_STORAGE, JSON.stringify(privJwk));
+    localStorage.setItem(E2EE_PUBLIC_KEY_STORAGE, JSON.stringify(pubJwk));
+    myKeyPair = pair;
+    myPublicKeyJWK = JSON.stringify(pubJwk);
     await sb.rpc('set_public_key', { p_token: myToken, p_public_key: myPublicKeyJWK });
+
+    const password = await setRecoveryPasswordFlow();
+    if (password) {
+      const enc = await encryptPrivateKeyWithPassword(JSON.stringify(privJwk), password);
+      await sb.rpc('save_key_recovery', { p_token: myToken, p_salt: enc.salt, p_iv: enc.iv, p_encrypted_key: enc.encryptedKey });
+    }
+
     return true;
   } catch (e) {
     return false;
@@ -750,6 +893,42 @@ async function e2eeDecrypt(sharedKey, bodyBase64, nonceBase64) {
   const iv = e2eeBase64ToBuf(nonceBase64);
   const ciphertext = e2eeBase64ToBuf(bodyBase64);
   const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedKey, ciphertext);
+  return new TextDecoder().decode(plainBuf);
+}
+
+async function deriveKeyFromPassword(password, saltBuf) {
+  const passKey = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']
+  );
+  return await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: saltBuf, iterations: 150000, hash: 'SHA-256' },
+    passKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptPrivateKeyWithPassword(privateKeyJwkStr, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const passDerivedKey = await deriveKeyFromPassword(password, salt);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv }, passDerivedKey, new TextEncoder().encode(privateKeyJwkStr)
+  );
+  return {
+    salt: e2eeBufToBase64(salt),
+    iv: e2eeBufToBase64(iv),
+    encryptedKey: e2eeBufToBase64(ciphertext)
+  };
+}
+
+async function decryptPrivateKeyWithPassword(saltB64, ivB64, encryptedKeyB64, password) {
+  const salt = new Uint8Array(e2eeBase64ToBuf(saltB64));
+  const iv = e2eeBase64ToBuf(ivB64);
+  const ciphertext = e2eeBase64ToBuf(encryptedKeyB64);
+  const passDerivedKey = await deriveKeyFromPassword(password, salt);
+  const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, passDerivedKey, ciphertext);
   return new TextDecoder().decode(plainBuf);
 }
 
@@ -1571,6 +1750,38 @@ document.getElementById('msgInput').addEventListener('focus', () => {
       setTimeout(() => el.scrollIntoView({ block: 'center' }), 350);
     });
   }
+});
+
+// ---------- Definir/trocar senha de recuperação a qualquer momento ----------
+document.getElementById('setRecoveryMenuBtn').addEventListener('click', async () => {
+  if (!myKeyPair) {
+    alert('Suas chaves ainda não terminaram de carregar. Espera alguns segundos e tenta de novo.');
+    return;
+  }
+  const password = await setRecoveryPasswordFlow();
+  if (!password) return;
+
+  const btn = document.getElementById('setRecoveryMenuBtn');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  try {
+    const privJwk = await crypto.subtle.exportKey('jwk', myKeyPair.privateKey);
+    const enc = await encryptPrivateKeyWithPassword(JSON.stringify(privJwk), password);
+    const { error } = await sb.rpc('save_key_recovery', {
+      p_token: myToken, p_salt: enc.salt, p_iv: enc.iv, p_encrypted_key: enc.encryptedKey
+    });
+    if (error) {
+      alert('Não foi possível salvar a senha de recuperação.');
+    } else {
+      alert('Senha de recuperação salva! Guarde ela num lugar seguro.');
+    }
+  } catch (e) {
+    alert('Não foi possível salvar a senha de recuperação.');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🛡️ Senha de recuperação';
 });
 
 // ---------- Trocar token ----------
