@@ -1328,6 +1328,10 @@ async function loadContacts() {
 async function selectContact(token, name, isLegacy, contactPublicKey) {
   selectedContact = { token, name, isLegacy: !!isLegacy, publicKey: contactPublicKey || null };
 
+  // limpa o rascunho da conversa anterior para não "vazar" para este contato
+  const msgInputEl = document.getElementById('msgInput');
+  if (msgInputEl) msgInputEl.value = '';
+
   if (!isLegacy && !selectedContact.publicKey) {
     try {
       const { data } = await sb.rpc('get_public_key', { p_token: myToken, p_of_token: token });
