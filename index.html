@@ -1362,14 +1362,16 @@ async function selectContact(token, name, isLegacy, contactPublicKey) {
       const badge = el.querySelector('.unread-badge');
       if (badge) badge.remove();
     }
-    await sb.rpc('mark_read', { p_token: myToken, p_with_token: token });
+    // dispara sem esperar (fire-and-forget) — não atrasa o carregamento das mensagens
+    sb.rpc('mark_read', { p_token: myToken, p_with_token: token });
   }
 
   updateOnlineIndicators();
 
+  // carrega a conversa JÁ, em paralelo com tudo mais — é o que a pessoa quer ver primeiro
   lastRenderedCount = 0;
-  loadContacts();
   loadConversation();
+  loadContacts();
   clearInterval(pollTimer);
   pollTimer = setInterval(loadConversation, 5000);
 }
