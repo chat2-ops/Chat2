@@ -663,6 +663,96 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
+// ---------- Criptografia ponta a ponta (ECDH P-256 + AES-GCM 256) ----------
+const E2EE_PRIVATE_KEY_STORAGE = 'e2eePrivateKeyJWK';
+const E2EE_PUBLIC_KEY_STORAGE = 'e2eePublicKeyJWK';
+let myKeyPair = null; // { privateKey, publicKey } CryptoKey objects
+let myPublicKeyJWK = null; // string, o que vai pro servidor
+const sharedKeyCache = new Map(); // contact_token -> CryptoKey (AES-GCM derivada)
+
+function e2eeBufToBase64(buf) {
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+function e2eeBase64ToBuf(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function ensureE2eeKeys() {
+  if (!window.crypto || !window.crypto.subtle) return false; // navegador sem suporte
+  try {
+    const savedPriv = localStorage.getItem(E2EE_PRIVATE_KEY_STORAGE);
+    const savedPub = localStorage.getItem(E2EE_PUBLIC_KEY_STORAGE);
+
+    if (savedPriv && savedPub) {
+      const privateKey = await crypto.subtle.importKey(
+        'jwk', JSON.parse(savedPriv), { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']
+      );
+      const publicKey = await crypto.subtle.importKey(
+        'jwk', JSON.parse(savedPub), { name: 'ECDH', namedCurve: 'P-256' }, true, []
+      );
+      myKeyPair = { privateKey, publicKey };
+      myPublicKeyJWK = savedPub;
+    } else {
+      const pair = await crypto.subtle.generateKey(
+        { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']
+      );
+      const pubJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+      const privJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+      localStorage.setItem(E2EE_PRIVATE_KEY_STORAGE, JSON.stringify(privJwk));
+      localStorage.setItem(E2EE_PUBLIC_KEY_STORAGE, JSON.stringify(pubJwk));
+      myKeyPair = pair;
+      myPublicKeyJWK = JSON.stringify(pubJwk);
+    }
+
+    // garante que o servidor está com a mesma chave pública que temos localmente
+    await sb.rpc('set_public_key', { p_token: myToken, p_public_key: myPublicKeyJWK });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function getSharedKeyFor(contactToken, contactPublicKeyJWK) {
+  if (!myKeyPair || !contactPublicKeyJWK) return null;
+  if (sharedKeyCache.has(contactToken)) return sharedKeyCache.get(contactToken);
+  try {
+    const theirPublicKey = await crypto.subtle.importKey(
+      'jwk', JSON.parse(contactPublicKeyJWK), { name: 'ECDH', namedCurve: 'P-256' }, true, []
+    );
+    const sharedKey = await crypto.subtle.deriveKey(
+      { name: 'ECDH', public: theirPublicKey },
+      myKeyPair.privateKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+    sharedKeyCache.set(contactToken, sharedKey);
+    return sharedKey;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function e2eeEncrypt(sharedKey, text) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(text);
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, sharedKey, encoded);
+  return { body: e2eeBufToBase64(ciphertext), nonce: e2eeBufToBase64(iv) };
+}
+
+async function e2eeDecrypt(sharedKey, bodyBase64, nonceBase64) {
+  const iv = e2eeBase64ToBuf(nonceBase64);
+  const ciphertext = e2eeBase64ToBuf(bodyBase64);
+  const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedKey, ciphertext);
+  return new TextDecoder().decode(plainBuf);
+}
+
 let myToken = null;
 let myName = null;
 let pollTimer = null;
@@ -799,7 +889,7 @@ function enterChat() {
   document.getElementById('chatScreen').style.display = 'flex';
   document.getElementById('youName').textContent = myName;
   setAvatar(document.getElementById('youAvatar'), myName);
-  loadContacts();
+  ensureE2eeKeys().then(() => loadContacts());
   contactsTimer = setInterval(loadContacts, 7000);
   setupPush();
   setupPresence();
@@ -988,7 +1078,7 @@ async function loadContacts() {
     listEl.appendChild(div);
   }
 
-  latestContacts.forEach(c => {
+  for (const c of latestContacts) {
     const div = document.createElement('div');
     div.className = 'contact-item' + (selectedContact && !selectedContact.isLegacy && selectedContact.token === c.contact_token ? ' active' : '');
     div.dataset.contactToken = c.contact_token;
@@ -997,9 +1087,20 @@ async function loadContacts() {
     avatar.className = 'avatar' + (onlineTokens.has(c.contact_token) ? ' online' : '');
     setAvatar(avatar, c.contact_name);
 
+    let previewText = c.last_message ? c.last_message : null;
+    if (c.last_message && c.last_message_nonce) {
+      const sk = await getSharedKeyFor(c.contact_token, c.contact_public_key);
+      if (sk) {
+        try { previewText = await e2eeDecrypt(sk, c.last_message, c.last_message_nonce); }
+        catch (e) { previewText = '🔒 mensagem'; }
+      } else {
+        previewText = '🔒 mensagem';
+      }
+    }
+
     const info = document.createElement('div');
     info.className = 'contact-info';
-    const preview = c.last_message ? escapeHtml(c.last_message) : 'Toque para conversar';
+    const preview = previewText ? escapeHtml(previewText) : 'Toque para conversar';
     const time = c.last_message_at ? fmtTime(c.last_message_at) : '';
     const badge = c.unread_count > 0 ? `<span class="unread-badge">${c.unread_count}</span>` : '';
     info.innerHTML = `
@@ -1036,13 +1137,20 @@ async function loadContacts() {
     });
     div.appendChild(hideBtn);
 
-    div.addEventListener('click', () => selectContact(c.contact_token, c.contact_name, false));
+    div.addEventListener('click', () => selectContact(c.contact_token, c.contact_name, false, c.contact_public_key));
     listEl.appendChild(div);
-  });
+  }
 }
 
-async function selectContact(token, name, isLegacy) {
-  selectedContact = { token, name, isLegacy: !!isLegacy };
+async function selectContact(token, name, isLegacy, contactPublicKey) {
+  selectedContact = { token, name, isLegacy: !!isLegacy, publicKey: contactPublicKey || null };
+
+  if (!isLegacy && !selectedContact.publicKey) {
+    try {
+      const { data } = await sb.rpc('get_public_key', { p_token: myToken, p_of_token: token });
+      selectedContact.publicKey = data || null;
+    } catch (e) { /* segue sem, mensagens cifradas ficarão ilegíveis até ter a chave */ }
+  }
   document.getElementById('chatScreen').classList.add('show-conversation');
   document.getElementById('conversationTitle').textContent = name;
   document.getElementById('conversationSub').textContent = isLegacy ? 'somente leitura' : '';
@@ -1083,7 +1191,7 @@ async function selectContact(token, name, isLegacy) {
   pollTimer = setInterval(loadConversation, 5000);
 }
 
-function renderMessages(messages) {
+async function renderMessages(messages) {
   const container = document.getElementById('messages');
   container.innerHTML = '';
 
@@ -1092,12 +1200,28 @@ function renderMessages(messages) {
     return;
   }
 
-  messages.forEach(m => {
+  let sharedKey = null;
+  if (selectedContact && !selectedContact.isLegacy) {
+    sharedKey = await getSharedKeyFor(selectedContact.token, selectedContact.publicKey);
+  }
+
+  for (const m of messages) {
     const div = document.createElement('div');
     div.className = 'msg' + (m.is_mine ? ' mine' : '');
     const senderLine = m.is_mine ? '' : `<div class="sender">${escapeHtml(m.name)}</div>`;
     const photoLine = m.image_url ? `<img class="photo" src="${escapeHtml(m.image_url)}" onclick="window.open('${escapeHtml(m.image_url)}','_blank')">` : '';
-    const bodyLine = m.body ? `<div class="body">${escapeHtml(m.body)}</div>` : '';
+
+    let bodyText = m.body;
+    if (m.body && m.nonce) {
+      if (sharedKey) {
+        try { bodyText = await e2eeDecrypt(sharedKey, m.body, m.nonce); }
+        catch (e) { bodyText = '🔒 Não foi possível abrir esta mensagem'; }
+      } else {
+        bodyText = '🔒 Mensagem cifrada';
+      }
+    }
+    const bodyLine = bodyText ? `<div class="body">${escapeHtml(bodyText)}</div>` : '';
+
     const deleteLine = m.is_mine ? `<span class="delete-msg" data-id="${m.id}" title="Apagar">🗑</span>` : '';
     let readReceipt = '';
     if (m.is_mine && typeof m.is_read !== 'undefined') {
@@ -1107,7 +1231,7 @@ function renderMessages(messages) {
     }
     div.innerHTML = `${senderLine}${photoLine}${bodyLine}<div class="time">${deleteLine}${fmtTime(m.created_at)}${readReceipt}</div>`;
     container.appendChild(div);
-  });
+  }
 
   container.scrollTop = container.scrollHeight;
 }
@@ -1128,7 +1252,7 @@ async function loadConversation() {
   showConnectionBanner(false);
   const isNewCount = data && data.length !== lastRenderedCount;
   lastRenderedCount = data ? data.length : 0;
-  renderMessages(data);
+  await renderMessages(data);
   if (!selectedContact.isLegacy && isNewCount) sb.rpc('mark_read', { p_token: myToken, p_with_token: selectedContact.token });
 }
 
@@ -1137,6 +1261,12 @@ document.getElementById('sendForm').addEventListener('submit', async (e) => {
   const input = document.getElementById('msgInput');
   const text = input.value.trim();
   if (!text || !myToken || !selectedContact) return;
+
+  const sharedKey = await getSharedKeyFor(selectedContact.token, selectedContact.publicKey);
+  if (!sharedKey) {
+    alert('Ainda não é possível enviar cifrado pra essa pessoa — ela precisa abrir o app pelo menos uma vez depois dessa atualização.');
+    return;
+  }
 
   input.value = '';
 
@@ -1151,7 +1281,13 @@ document.getElementById('sendForm').addEventListener('submit', async (e) => {
   container.scrollTop = container.scrollHeight;
 
   sendInFlight = true;
-  const { data, error } = await sb.rpc('send_message', { p_token: myToken, p_to_token: selectedContact.token, p_text: text });
+  const encrypted = await e2eeEncrypt(sharedKey, text);
+  const { data, error } = await sb.rpc('send_message', {
+    p_token: myToken,
+    p_to_token: selectedContact.token,
+    p_text: encrypted.body,
+    p_nonce: encrypted.nonce
+  });
   if (error || !data) {
     sendInFlight = false;
     tempDiv.remove();
