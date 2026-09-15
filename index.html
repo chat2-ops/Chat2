@@ -1261,7 +1261,19 @@ async function loadContacts() {
     listEl.appendChild(div);
   }
 
-  for (const c of latestContacts) {
+  const previewTexts = await Promise.all(latestContacts.map(async (c) => {
+    if (c.last_message && c.last_message_nonce) {
+      const sk = await getSharedKeyFor(c.contact_token, c.contact_public_key);
+      if (sk) {
+        try { return await e2eeDecrypt(sk, c.last_message, c.last_message_nonce); }
+        catch (e) { return '🔒 mensagem'; }
+      }
+      return '🔒 mensagem';
+    }
+    return c.last_message || null;
+  }));
+
+  latestContacts.forEach((c, idx) => {
     const div = document.createElement('div');
     div.className = 'contact-item' + (selectedContact && !selectedContact.isLegacy && selectedContact.token === c.contact_token ? ' active' : '');
     div.dataset.contactToken = c.contact_token;
@@ -1270,16 +1282,7 @@ async function loadContacts() {
     avatar.className = 'avatar' + (onlineTokens.has(c.contact_token) ? ' online' : '');
     setAvatar(avatar, c.contact_name);
 
-    let previewText = c.last_message ? c.last_message : null;
-    if (c.last_message && c.last_message_nonce) {
-      const sk = await getSharedKeyFor(c.contact_token, c.contact_public_key);
-      if (sk) {
-        try { previewText = await e2eeDecrypt(sk, c.last_message, c.last_message_nonce); }
-        catch (e) { previewText = '🔒 mensagem'; }
-      } else {
-        previewText = '🔒 mensagem';
-      }
-    }
+    const previewText = previewTexts[idx];
 
     const info = document.createElement('div');
     info.className = 'contact-info';
@@ -1322,15 +1325,11 @@ async function loadContacts() {
 
     div.addEventListener('click', () => selectContact(c.contact_token, c.contact_name, false, c.contact_public_key));
     listEl.appendChild(div);
-  }
+  });
 }
 
 async function selectContact(token, name, isLegacy, contactPublicKey) {
   selectedContact = { token, name, isLegacy: !!isLegacy, publicKey: contactPublicKey || null };
-
-  // limpa o rascunho da conversa anterior para não "vazar" para este contato
-  const msgInputEl = document.getElementById('msgInput');
-  if (msgInputEl) msgInputEl.value = '';
 
   if (!isLegacy && !selectedContact.publicKey) {
     try {
@@ -1366,7 +1365,7 @@ async function selectContact(token, name, isLegacy, contactPublicKey) {
       const badge = el.querySelector('.unread-badge');
       if (badge) badge.remove();
     }
-    await sb.rpc('mark_read', { p_token: myToken, p_with_token: token });
+    sb.rpc('mark_read', { p_token: myToken, p_with_token: token }); // não bloqueia a troca de conversa
   }
 
   updateOnlineIndicators();
@@ -1392,21 +1391,24 @@ async function renderMessages(messages) {
     sharedKey = await getSharedKeyFor(selectedContact.token, selectedContact.publicKey);
   }
 
-  for (const m of messages) {
+  const decryptedBodies = await Promise.all(messages.map(async (m) => {
+    if (m.body && m.nonce) {
+      if (sharedKey) {
+        try { return await e2eeDecrypt(sharedKey, m.body, m.nonce); }
+        catch (e) { return '🔒 Não foi possível abrir esta mensagem'; }
+      }
+      return '🔒 Mensagem cifrada';
+    }
+    return m.body;
+  }));
+
+  messages.forEach((m, idx) => {
     const div = document.createElement('div');
     div.className = 'msg' + (m.is_mine ? ' mine' : '');
     const senderLine = m.is_mine ? '' : `<div class="sender">${escapeHtml(m.name)}</div>`;
     const photoLine = m.image_url ? `<img class="photo" src="${escapeHtml(m.image_url)}" onclick="window.open('${escapeHtml(m.image_url)}','_blank')">` : '';
 
-    let bodyText = m.body;
-    if (m.body && m.nonce) {
-      if (sharedKey) {
-        try { bodyText = await e2eeDecrypt(sharedKey, m.body, m.nonce); }
-        catch (e) { bodyText = '🔒 Não foi possível abrir esta mensagem'; }
-      } else {
-        bodyText = '🔒 Mensagem cifrada';
-      }
-    }
+    const bodyText = decryptedBodies[idx];
     const bodyLine = bodyText ? `<div class="body">${escapeHtml(bodyText)}</div>` : '';
 
     const deleteLine = m.is_mine ? `<span class="delete-msg" data-id="${m.id}" title="Apagar">🗑</span>` : '';
@@ -1418,7 +1420,7 @@ async function renderMessages(messages) {
     }
     div.innerHTML = `${senderLine}${photoLine}${bodyLine}<div class="time">${deleteLine}${fmtTime(m.created_at)}${readReceipt}</div>`;
     container.appendChild(div);
-  }
+  });
 
   container.scrollTop = container.scrollHeight;
 }
