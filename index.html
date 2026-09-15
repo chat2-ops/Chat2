@@ -713,6 +713,44 @@ function e2eeBase64ToBuf(base64) {
   return bytes.buffer;
 }
 
+// ---------- Aviso de troca de chave (tipo "código de segurança mudou" do WhatsApp/Signal) ----------
+const KNOWN_KEYS_STORAGE = 'chatKnownContactKeys';
+
+function getKnownContactKeys() {
+  try {
+    const raw = localStorage.getItem(KNOWN_KEYS_STORAGE);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveKnownContactKeys(map) {
+  try { localStorage.setItem(KNOWN_KEYS_STORAGE, JSON.stringify(map)); } catch (e) {}
+}
+
+// Compara a chave atual do contato com a última chave que a gente conhecia dele.
+// Retorna true se mudou (e ainda não foi confirmada pelo usuário nesta troca).
+function didContactKeyChange(contactToken, currentPublicKeyJWK) {
+  if (!currentPublicKeyJWK) return false;
+  const known = getKnownContactKeys();
+  const previous = known[contactToken];
+  if (!previous) {
+    // primeira vez vendo essa pessoa: só registra, sem avisar (não tem o que comparar ainda)
+    known[contactToken] = currentPublicKeyJWK;
+    saveKnownContactKeys(known);
+    return false;
+  }
+  return previous !== currentPublicKeyJWK;
+}
+
+// Chamado quando o usuário confirma que está ciente da troca e quer continuar.
+function acknowledgeContactKeyChange(contactToken, newPublicKeyJWK) {
+  const known = getKnownContactKeys();
+  known[contactToken] = newPublicKeyJWK;
+  saveKnownContactKeys(known);
+}
+
 function setRecoveryPasswordFlow() {
   const box = document.getElementById('setRecoveryBox');
   const pass1 = document.getElementById('recoveryPasswordInput');
@@ -867,7 +905,10 @@ async function ensureE2eeKeys() {
 
 async function getSharedKeyFor(contactToken, contactPublicKeyJWK) {
   if (!myKeyPair || !contactPublicKeyJWK) return null;
-  if (sharedKeyCache.has(contactToken)) return sharedKeyCache.get(contactToken);
+  // a chave do cache inclui a chave pública atual do contato — se ela mudar
+  // (trocou de aparelho, limpou dados, etc.), o cache antigo vira obsoleto sozinho
+  const cacheKey = contactToken + '|' + contactPublicKeyJWK;
+  if (sharedKeyCache.has(cacheKey)) return sharedKeyCache.get(cacheKey);
   try {
     const theirPublicKey = await crypto.subtle.importKey(
       'jwk', JSON.parse(contactPublicKeyJWK), { name: 'ECDH', namedCurve: 'P-256' }, true, []
@@ -879,7 +920,7 @@ async function getSharedKeyFor(contactToken, contactPublicKeyJWK) {
       false,
       ['encrypt', 'decrypt']
     );
-    sharedKeyCache.set(contactToken, sharedKey);
+    sharedKeyCache.set(cacheKey, sharedKey);
     return sharedKey;
   } catch (e) {
     return null;
@@ -1358,6 +1399,9 @@ async function selectContact(token, name, isLegacy, contactPublicKey) {
 
   const existingNote = document.getElementById('readOnlyNote');
   if (existingNote) existingNote.remove();
+  const existingKeyWarning = document.getElementById('keyChangedNote');
+  if (existingKeyWarning) existingKeyWarning.remove();
+
   if (isLegacy) {
     const note = document.createElement('div');
     note.id = 'readOnlyNote';
@@ -1369,6 +1413,17 @@ async function selectContact(token, name, isLegacy, contactPublicKey) {
     note.innerHTML = `<span>Mensagens de antes das conversas privadas existirem.</span>
       <button id="clearHistoryBtn" type="button" style="width:auto;padding:4px 12px;font-size:0.75rem;background:var(--error);color:white;border-radius:14px;">Apagar histórico</button>`;
     document.getElementById('conversationPane').insertBefore(note, document.getElementById('messages'));
+  } else if (selectedContact.publicKey && didContactKeyChange(token, selectedContact.publicKey)) {
+    const note = document.createElement('div');
+    note.id = 'keyChangedNote';
+    note.style.cssText = 'padding:10px 16px;background:#FBECEC;color:#A13A3A;font-size:0.8rem;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;text-align:center;';
+    note.innerHTML = `<span>🔒 O código de segurança com <b>${escapeHtml(name)}</b> mudou. Isso acontece se a pessoa trocou de aparelho — mas confirme com ela antes de continuar, por segurança.</span>
+      <button id="ackKeyChangeBtn" type="button" style="width:auto;padding:4px 12px;font-size:0.75rem;background:#A13A3A;color:white;border-radius:14px;">Entendi, confiar</button>`;
+    document.getElementById('conversationPane').insertBefore(note, document.getElementById('messages'));
+    document.getElementById('ackKeyChangeBtn').addEventListener('click', () => {
+      acknowledgeContactKeyChange(token, selectedContact.publicKey);
+      note.remove();
+    });
   }
 
   // limpa o selo de não lidas na hora, sem esperar o próximo ciclo
@@ -1378,15 +1433,17 @@ async function selectContact(token, name, isLegacy, contactPublicKey) {
       const badge = el.querySelector('.unread-badge');
       if (badge) badge.remove();
     }
-    await sb.rpc('mark_read', { p_token: myToken, p_with_token: token });
+    // dispara sem esperar (fire-and-forget) — não atrasa o carregamento das mensagens
+    sb.rpc('mark_read', { p_token: myToken, p_with_token: token });
   }
 
   updateOnlineIndicators();
 
+  // carrega a conversa JÁ, em paralelo com tudo mais — é o que a pessoa quer ver primeiro
   lastRenderedCount = 0;
   lastRenderedSignature = '__none__';
-  loadContacts();
   loadConversation();
+  loadContacts();
   clearInterval(pollTimer);
   pollTimer = setInterval(loadConversation, 5000);
 }
