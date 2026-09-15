@@ -943,6 +943,8 @@ let selectedContact = null; // { token, name, isLegacy }
 let contactsTimer = null;
 let latestContacts = [];
 let lastRenderedCount = 0;
+let lastRenderedSignature = '';
+let lastContactsSignature = '';
 let presenceChannel = null;
 let onlineTokens = new Set();
 let sendInFlight = false;
@@ -1229,6 +1231,16 @@ async function loadContacts() {
   const legacyData = (!legacyResult.error && legacyResult.data) ? legacyResult.data : [];
   const legacyLast = legacyData.length > 0 ? legacyData[legacyData.length - 1] : null;
 
+  const contactsSignature = JSON.stringify({
+    sel: selectedContact ? (selectedContact.isLegacy ? '__legacy__' : selectedContact.token) : null,
+    legacy: legacyLast ? legacyLast.created_at + legacyLast.body : null,
+    list: latestContacts.map(c => `${c.contact_token}:${c.contact_name}:${c.last_message}:${c.last_message_at}:${c.unread_count}:${onlineTokens.has(c.contact_token)}`)
+  });
+  if (contactsSignature === lastContactsSignature) {
+    return; // nada mudou, evita redesenhar e piscar a lista
+  }
+  lastContactsSignature = contactsSignature;
+
   if (latestContacts.length === 0 && !legacyLast) {
     listEl.innerHTML = '<div class="contacts-empty">Ainda não tem ninguém na sala. Toque em "Convidar alguém" para trazer alguém.</div>';
     return;
@@ -1372,6 +1384,7 @@ async function selectContact(token, name, isLegacy, contactPublicKey) {
   updateOnlineIndicators();
 
   lastRenderedCount = 0;
+  lastRenderedSignature = '__none__';
   loadContacts();
   loadConversation();
   clearInterval(pollTimer);
@@ -1423,6 +1436,11 @@ async function renderMessages(messages) {
   container.scrollTop = container.scrollHeight;
 }
 
+function conversationSignature(data) {
+  if (!data) return '';
+  return data.map(m => `${m.id}:${m.is_read}:${m.body || ''}:${m.image_url || ''}`).join('|');
+}
+
 async function loadConversation() {
   if (!selectedContact || sendInFlight) return;
   const rpcName = selectedContact.isLegacy ? 'get_legacy_messages' : 'get_conversation';
@@ -1438,8 +1456,13 @@ async function loadConversation() {
   }
   showConnectionBanner(false);
   const isNewCount = data && data.length !== lastRenderedCount;
+  const newSignature = conversationSignature(data);
+  const contentChanged = newSignature !== lastRenderedSignature;
   lastRenderedCount = data ? data.length : 0;
-  await renderMessages(data);
+  if (contentChanged) {
+    lastRenderedSignature = newSignature;
+    await renderMessages(data);
+  }
   if (!selectedContact.isLegacy && isNewCount) sb.rpc('mark_read', { p_token: myToken, p_with_token: selectedContact.token });
 }
 
