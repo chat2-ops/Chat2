@@ -1364,7 +1364,8 @@ async function loadContacts() {
     info.className = 'contact-info';
     const preview = previewText ? escapeHtml(previewText) : 'Toque para conversar';
     const time = c.last_message_at ? fmtTime(c.last_message_at) : '';
-    const badge = c.unread_count > 0 ? `<span class="unread-badge">${c.unread_count}</span>` : '';
+    const isCurrentlyOpen = selectedContact && !selectedContact.isLegacy && selectedContact.token === c.contact_token;
+    const badge = (c.unread_count > 0 && !isCurrentlyOpen) ? `<span class="unread-badge">${c.unread_count}</span>` : '';
     info.innerHTML = `
       <div class="contact-row1">
         <span class="contact-name">${escapeHtml(c.contact_name)}</span>
