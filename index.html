@@ -675,7 +675,7 @@
 <script>
 // --- Toda vez que publicar uma versão nova, muda esse valor (data/hora, por exemplo) ---
 // É assim que o app detecta que existe uma atualização disponível.
-const APP_VERSION = '2026-09-16-02';
+const APP_VERSION = '2026-09-16-03';
 // -------------------------------------------------------
 
 // --- Preencha com os dados do seu projeto Supabase ---
@@ -1442,8 +1442,13 @@ async function loadContacts() {
 }
 
 async function selectContact(token, name, isLegacy, contactPublicKey) {
-  // marca como lida o contato anterior mais uma vez antes de sair —
-  // pega qualquer mensagem que tenha chegado bem na hora de trocar
+  // Marca como lida IMEDIATAMENTE, antes de qualquer outra coisa —
+  // assim nada que aconteça depois nesta função pode impedir isso de disparar.
+  if (!isLegacy) {
+    sb.rpc('mark_read', { p_token: myToken, p_with_token: token }).then(({ error }) => {
+      if (error) console.error('Falha ao marcar como lida:', error);
+    });
+  }
   if (selectedContact && !selectedContact.isLegacy && selectedContact.token !== token) {
     sb.rpc('mark_read', { p_token: myToken, p_with_token: selectedContact.token });
   }
@@ -1495,15 +1500,13 @@ async function selectContact(token, name, isLegacy, contactPublicKey) {
     });
   }
 
-  // limpa o selo de não lidas na hora, sem esperar o próximo ciclo
+  // limpa o selo de não lidas na hora, sem esperar o próximo ciclo (o mark_read já disparou lá em cima)
   if (!isLegacy) {
     const el = document.querySelector(`.contact-item[data-contact-token="${token}"]`);
     if (el) {
       const badge = el.querySelector('.unread-badge');
       if (badge) badge.remove();
     }
-    // dispara sem esperar (fire-and-forget) — não atrasa o carregamento das mensagens
-    sb.rpc('mark_read', { p_token: myToken, p_with_token: token });
   }
 
   updateOnlineIndicators();
@@ -1589,7 +1592,11 @@ async function loadConversation() {
     lastRenderedSignature = newSignature;
     await renderMessages(data);
   }
-  if (!selectedContact.isLegacy && isNewCount) sb.rpc('mark_read', { p_token: myToken, p_with_token: selectedContact.token });
+  if (!selectedContact.isLegacy && isNewCount) {
+    sb.rpc('mark_read', { p_token: myToken, p_with_token: selectedContact.token }).then(({ error }) => {
+      if (error) console.error('Falha ao marcar como lida (loadConversation):', error);
+    });
+  }
 }
 
 document.getElementById('sendForm').addEventListener('submit', async (e) => {
