@@ -1115,10 +1115,36 @@ function enterChat() {
   document.getElementById('chatScreen').style.display = 'flex';
   document.getElementById('youName').textContent = myName;
   setAvatar(document.getElementById('youAvatar'), myName);
-  ensureE2eeKeys().then(() => loadContacts());
+  ensureE2eeKeys().then(async () => {
+    await loadContacts();
+    runStartupKeyHealthCheck();
+  });
   contactsTimer = setInterval(loadContacts, 7000);
   setupPush();
   setupPresence();
+}
+
+// Roda uma vez ao entrar: confere em segundo plano se a chave deste aparelho
+// está decifrando as conversas normalmente, e avisa cedo se não estiver.
+async function runStartupKeyHealthCheck() {
+  try {
+    const health = await checkCurrentKeyHealthy();
+    if (health.failedNames.length > 0) {
+      showKeyHealthBanner(health.failedNames);
+    }
+  } catch (e) { /* checagem é só um bônus, nunca deve travar a entrada no chat */ }
+}
+
+function showKeyHealthBanner(failedNames) {
+  if (document.getElementById('keyHealthBanner')) return;
+  const nomes = failedNames.join(', ');
+  const banner = document.createElement('div');
+  banner.id = 'keyHealthBanner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:60;background:#A13A3A;color:white;font-size:0.78rem;padding:8px 14px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;text-align:center;';
+  banner.innerHTML = `<span>🔒 A chave deste aparelho não está abrindo as mensagens de: ${escapeHtml(nomes)}.</span>
+    <button type="button" id="keyHealthDismissBtn" style="width:auto;padding:3px 10px;font-size:0.72rem;background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.5);">Entendi</button>`;
+  document.body.appendChild(banner);
+  document.getElementById('keyHealthDismissBtn').addEventListener('click', () => banner.remove());
 }
 
 // ---------- Presença (quem está online) ----------
