@@ -1,0 +1,2354 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#008069">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mensagem3D">
+<meta name="format-detection" content="telephone=no">
+<meta name="mobile-web-app-orientations" content="portrait">
+<link rel="apple-touch-icon" href="icon-apple-touch.png">
+<title>Chat com token</title>
+<script src="./supabase.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --header: #008069;
+    --header-dark: #005C4B;
+    --accent: #25D366;
+    --wallpaper: #E5DDD5;
+    --bubble-mine: #D9FDD3;
+    --bubble-theirs: #FFFFFF;
+    --panel: #FFFFFF;
+    --divider: #E9EDEF;
+    --text: #111B21;
+    --text-dim: #667781;
+    --error: #D9534F;
+    --badge: #25D366;
+    --bg-app: #F0F2F5;
+    --menu-bg: #FFFFFF;
+    --menu-text: var(--text);
+    --menu-divider: var(--divider);
+    --menu-hover: #F5F6F6;
+  }
+
+  body.dark {
+    --header: #0B141A;
+    --header-dark: #08100F;
+    --accent: #25D366;
+    --wallpaper: #0B141A;
+    --bubble-mine: #005C4B;
+    --bubble-theirs: #1F2C34;
+    --panel: #111B21;
+    --divider: #2A3942;
+    --text: #E9EDEF;
+    --text-dim: #8696A0;
+    --error: #F15C5C;
+    --badge: #25D366;
+    --bg-app: #0B141A;
+    --menu-bg: #1F2C34;
+    --menu-text: #E9EDEF;
+    --menu-divider: #2A3942;
+    --menu-hover: #2A3942;
+  }
+
+  body.dark input[type=text],
+  body.dark input[type=password] { background: #1F2C34; color: var(--text); border-color: var(--divider); }
+  body.dark .access-card { background: var(--panel); }
+  body.dark .token-result { background: #1F2C34; border-color: var(--divider); }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg-app);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- Access screen ---------- */
+  #access {
+    flex: 1;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px;
+    padding-top: 48px;
+    background: var(--bg-app);
+    overflow-y: auto;
+  }
+
+  .access-card {
+    width: 100%;
+    max-width: 380px;
+    background: #FFFFFF;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    overflow: hidden;
+  }
+
+  .access-header {
+    background: var(--header);
+    padding: 26px 26px 22px;
+    color: white;
+  }
+
+  .access-header h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+
+  .access-header p {
+    font-size: 0.85rem;
+    margin: 0;
+    opacity: 0.9;
+    line-height: 1.4;
+  }
+
+  .access-body { padding: 22px 26px 26px; }
+
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--divider);
+    margin-bottom: 20px;
+  }
+
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+  }
+
+  .tab.active { color: var(--header); border-color: var(--accent); }
+
+  label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+    font-weight: 500;
+  }
+
+  input[type=text] {
+    width: 100%;
+    background: #F7F8FA;
+    border: 1px solid var(--divider);
+    border-radius: 8px;
+    padding: 11px 12px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.95rem;
+    margin-bottom: 14px;
+  }
+
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+
+  button {
+    width: 100%;
+    padding: 11px 0;
+    border-radius: 24px;
+    border: none;
+    background: var(--accent);
+    color: #052F1E;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+
+  button:hover { background: #22C55E; }
+  button:disabled { background: #A9E8C0; cursor: not-allowed; }
+
+  .error-msg { color: var(--error); font-size: 0.82rem; margin: -6px 0 14px; }
+
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  .token-result {
+    margin-top: 16px;
+    padding: 13px;
+    background: #F7F8FA;
+    border: 1px dashed #B7C0C4;
+    border-radius: 8px;
+    font-size: 0.88rem;
+  }
+
+  .token-result .code {
+    color: var(--header);
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: 0.3px;
+    word-break: break-all;
+    margin: 6px 0 10px;
+    font-family: 'SF Mono', Consolas, monospace;
+  }
+
+  .token-result button { margin-bottom: 8px; }
+
+  /* ---------- Chat screen ---------- */
+  #chatScreen {
+    display: none;
+    flex: 1;
+    flex-direction: row;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #contactsPane {
+    width: 300px;
+    min-width: 300px;
+    background: var(--panel);
+    border-right: 1px solid var(--divider);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .contacts-header {
+    background: var(--header);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: white;
+  }
+
+  .avatar {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: white;
+    position: relative;
+  }
+
+  .avatar.online::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 11px;
+    height: 11px;
+    background: #31D158;
+    border: 2px solid white;
+    border-radius: 50%;
+  }
+
+  .contacts-header .you-name { font-weight: 600; font-size: 0.95rem; }
+  .contacts-header .you-sub { font-size: 0.7rem; opacity: 0.85; }
+
+  .menu-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    padding: 13px 16px;
+    background: var(--menu-bg);
+    color: var(--menu-text);
+    border: none;
+    border-radius: 0;
+    font-weight: 500;
+    font-size: 0.92rem;
+  }
+  .menu-item:hover { background: var(--menu-hover); }
+  .menu-item svg { flex-shrink: 0; opacity: 0.85; }
+
+  #inviteBtn {
+    width: calc(100% - 24px);
+    margin: 10px 12px;
+    padding: 9px 0;
+    font-size: 0.82rem;
+    background: #F7F8FA;
+    color: var(--header);
+    border: 1px solid var(--divider);
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  #inviteBtn:hover { background: #EFF1F3; }
+
+  #contactsList { flex: 1; overflow-y: auto; }
+
+  .contact-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .contact-item:hover { background: #F5F6F6; }
+  .contact-item.active { background: var(--menu-hover); }
+
+  .contact-info { flex: 1; min-width: 0; }
+
+  .contact-row1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .contact-name { font-weight: 600; font-size: 0.95rem; }
+  .contact-time { font-size: 0.72rem; color: var(--text-dim); }
+
+  /* Mais contraste para os nomes no modo escuro */
+  body.dark .contact-name {
+    color: #FFFFFF;
+    font-weight: 700;
+    font-size: 0.98rem;
+    letter-spacing: 0.1px;
+  }
+  body.dark .contact-item.active .contact-name {
+    color: #FFFFFF;
+  }
+
+  .contact-row2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2px;
+  }
+
+  .contact-preview {
+    font-size: 0.83rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .unread-badge {
+    background: var(--badge);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 2px 7px;
+    min-width: 18px;
+    text-align: center;
+  }
+
+  .contact-item.legacy { background: #FBF6E9; }
+  .contact-item.legacy .contact-name { color: #8C6534; }
+  .contact-item.legacy .avatar { background: #C98A3E !important; }
+
+  .contacts-empty {
+    padding: 18px 16px;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .hide-contact {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    padding: 4px 6px;
+    cursor: pointer;
+    opacity: 0.5;
+    border-radius: 50%;
+  }
+  .hide-contact:hover { opacity: 1; background: var(--menu-hover); }
+
+  #conversationPane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--wallpaper);
+  }
+
+  header.bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    background: var(--header);
+    color: white;
+  }
+
+  header.bar h2 { font-size: 1rem; margin: 0; font-weight: 600; }
+  header.bar .sub { font-size: 0.72rem; opacity: 0.85; }
+
+  .read-only-note {
+    padding: 8px 18px;
+    background: #FBF6E9;
+    color: #8C6534;
+    font-size: 0.78rem;
+    text-align: center;
+  }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 6%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .msg {
+    max-width: 65%;
+    padding: 7px 10px 8px;
+    border-radius: 8px;
+    background: var(--bubble-theirs);
+    align-self: flex-start;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.08);
+  }
+
+  .msg.mine { align-self: flex-end; background: var(--bubble-mine); }
+
+  .msg .sender {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--header);
+    margin-bottom: 2px;
+  }
+
+  .msg .body {
+    font-size: 0.92rem;
+    line-height: 1.35;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+  }
+
+  .msg .photo {
+    max-width: 240px;
+    max-height: 240px;
+    border-radius: 8px;
+    display: block;
+    margin-top: 2px;
+    cursor: pointer;
+  }
+
+  .attach-progress {
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    background: var(--bg-app);
+  }
+
+  .msg .time {
+    font-size: 0.66rem;
+    color: var(--text-dim);
+    text-align: right;
+    margin-top: 2px;
+  }
+
+  .delete-msg {
+    cursor: pointer;
+    margin-right: 6px;
+    opacity: 0.6;
+  }
+  .delete-msg:hover { opacity: 1; }
+
+  .read-receipt {
+    margin-left: 4px;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+  }
+  .read-receipt.read { color: #53BDEB; }
+
+  .empty-state {
+    margin: auto;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.88rem;
+    background: var(--panel);
+    padding: 14px 20px;
+    border-radius: 10px;
+  }
+
+  form#sendForm {
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg-app);
+  }
+
+  form#sendForm input {
+    margin: 0;
+    flex: 1;
+    border-radius: 22px;
+    background: var(--panel);
+    color: var(--text);
+  }
+
+  form#sendForm button {
+    width: auto;
+    padding: 0 20px;
+    border-radius: 22px;
+  }
+
+  .invite-box {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .invite-box.active { display: flex; }
+  .invite-box .card {
+    background: white;
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 340px;
+    width: 100%;
+  }
+  .invite-box h3 { margin: 0 0 4px; font-size: 1.05rem; }
+  .invite-box p { color: var(--text-dim); font-size: 0.85rem; margin: 0 0 14px; }
+  .invite-box .close {
+    width: auto;
+    background: transparent;
+    border: 1px solid var(--divider);
+    color: var(--text-dim);
+    margin-top: 10px;
+  }
+
+  .conn-error {
+    max-width: 380px;
+    margin: 40px auto;
+    padding: 20px;
+    background: white;
+    border: 1px solid var(--error);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    color: var(--error);
+    text-align: center;
+  }
+
+  .hidden-contact-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--divider);
+  }
+  .hidden-contact-row:last-child { border-bottom: none; }
+  .hidden-contact-row span { font-size: 0.9rem; }
+  .hidden-contact-row button {
+    width: auto;
+    padding: 5px 14px;
+    font-size: 0.78rem;
+    background: #F7F8FA;
+    color: var(--header);
+    border: 1px solid var(--divider);
+  }
+  .hidden-empty {
+    padding: 10px 0;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+
+  .back-btn {
+    display: none;
+    width: auto;
+    padding: 4px 10px;
+    background: transparent;
+    color: white;
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+
+  @media (max-width: 768px) {
+    #chatScreen { height: 100vh; height: 100dvh; }
+    #contactsPane { width: 100%; min-width: 100%; display: flex; }
+    #conversationPane { display: none; }
+    #chatScreen.show-conversation #contactsPane { display: none; }
+    #chatScreen.show-conversation #conversationPane { display: flex; }
+    .back-btn { display: inline-block; }
+    .msg { max-width: 82%; }
+    #messages { padding: 14px 3%; }
+  }
+</style>
+</head>
+<body>
+
+<div id="access">
+  <div class="access-card">
+    <div class="access-header">
+      <img src="logo-header.png" alt="Q+Chat" style="width:64px;height:64px;display:block;margin-bottom:10px;">
+      <h1>Chat com token</h1>
+      <p>Cada pessoa entra com um token validado no servidor — sem token, sem acesso.</p>
+    </div>
+    <div class="access-body">
+      <div class="tabs">
+        <div class="tab active" data-tab="join">Entrar com token</div>
+        <div class="tab" data-tab="create">Criar sala</div>
+      </div>
+
+      <div class="pane active" id="pane-join">
+        <label for="joinName">Seu nome</label>
+        <input type="text" id="joinName" placeholder="como vão te ver no chat" autocomplete="off">
+        <label for="joinToken">Seu token</label>
+        <input type="text" id="joinToken" placeholder="ex: 8f2a91cd0e1b" autocomplete="off">
+        <div class="error-msg" id="joinError" style="display:none;"></div>
+        <button id="joinBtn">Entrar na sala</button>
+      </div>
+
+      <div class="pane" id="pane-create">
+        <label for="creatorName">Seu nome</label>
+        <input type="text" id="creatorName" placeholder="como vão te ver no chat" autocomplete="off">
+        <label for="creatorPassword">E-mail autorizado</label>
+        <input type="email" id="creatorPassword" placeholder="e-mail" autocomplete="off">
+        <div class="error-msg" id="createError" style="display:none;"></div>
+        <button id="createBtn">Criar sala e gerar meu token</button>
+        <div class="token-result" id="createResult" style="display:none;">
+          Guarde este token — é ele que dá acesso à sala:
+          <div class="code" id="createdTokenCode"></div>
+          <button type="button" id="copyCreatedBtn" style="background: #F7F8FA; color: var(--header); border: 1px solid var(--divider);">Copiar token</button>
+          Depois de entrar, você pode gerar tokens novos para convidar outras pessoas.
+        </div>
+        <button id="enterAfterCreateBtn" style="display:none; margin-top: 10px;">Copiei o token, entrar na sala</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="chatScreen">
+  <div id="contactsPane">
+    <div class="contacts-header" style="position:relative;">
+      <div class="avatar" id="youAvatar"></div>
+      <div style="flex:1;min-width:0;">
+        <div class="you-name" id="youName"></div>
+        <div class="you-sub">conversas protegidas</div>
+      </div>
+      <button id="menuToggleBtn" title="Menu" style="width:auto;padding:8px;background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);line-height:1;display:flex;align-items:center;justify-content:center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+      </button>
+
+      <div id="optionsMenu" style="display:none;position:absolute;top:100%;right:12px;margin-top:6px;background:var(--menu-bg);border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.25);overflow:hidden;z-index:20;min-width:230px;">
+        <button id="themeToggleBtn" class="menu-item" style="border-bottom:1px solid var(--menu-divider);">
+          <svg id="themeIconSun" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.34" y2="17.66"/><line x1="17.66" y1="6.34" x2="19.07" y2="4.93"/></svg>
+          <svg id="themeIconMoon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <span id="themeToggleLabel">Modo escuro</span>
+        </button>
+        <button id="inviteBtn" class="menu-item" style="border-bottom:1px solid var(--menu-divider);">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Convidar alguém</span>
+        </button>
+        <button id="notifyBtn" class="menu-item" style="border-bottom:1px solid var(--menu-divider);">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span>Ativar notificações</span>
+        </button>
+        <button id="setRecoveryMenuBtn" class="menu-item" style="border-bottom:1px solid var(--menu-divider);">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z"/><path d="m9 12 2 2 4-4"/></svg>
+          <span>Senha de recuperação</span>
+        </button>
+        <button id="hiddenContactsBtn" class="menu-item" style="border-bottom:1px solid var(--menu-divider);">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>
+          <span>Contatos escondidos</span>
+        </button>
+        <button id="rotateTokenBtn" class="menu-item" style="border-bottom:1px solid var(--menu-divider);">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z"/></svg>
+          <span>Trocar meu token</span>
+        </button>
+        <button id="logoutBtn" class="menu-item">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span>Sair</span>
+        </button>
+      </div>
+    </div>
+    <div id="contactsList"></div>
+  </div>
+
+  <div id="conversationPane">
+    <header class="bar">
+      <button type="button" class="back-btn" id="backBtn">←</button>
+      <div class="avatar" id="conversationAvatar" style="width:34px;height:34px;min-width:34px;font-size:0.85rem;"></div>
+      <div>
+        <h2 id="conversationTitle">Escolha alguém para conversar</h2>
+        <div class="sub" id="conversationSub"></div>
+      </div>
+    </header>
+
+    <div id="messages">
+      <div class="empty-state">Convide alguém ou selecione um contato à esquerda para começar.</div>
+    </div>
+
+    <form id="sendForm" style="display:none;">
+      <input type="file" id="fileInput" accept="image/*" style="display:none;">
+      <button type="button" id="attachBtn" title="Enviar foto" style="width:auto;padding:0 14px;border-radius:22px;background:#F7F8FA;color:var(--header);border:1px solid var(--divider);">📎</button>
+      <input type="text" id="msgInput" placeholder="Escreva uma mensagem" autocomplete="off">
+      <button type="submit">Enviar</button>
+    </form>
+  </div>
+</div>
+
+<div class="invite-box" id="inviteBox">
+  <div class="card">
+    <h3>Convidar alguém</h3>
+    <p>Gere um token novo e compartilhe com a pessoa. Sem ele, ninguém consegue enviar mensagem aqui.</p>
+    <button id="genInviteBtn">Gerar novo token</button>
+    <div class="token-result" id="inviteResult" style="display:none;">
+      Token gerado:
+      <div class="code" id="inviteTokenCode"></div>
+      <button type="button" id="copyInviteBtn" style="background: #F7F8FA; color: var(--header); border: 1px solid var(--divider);">Copiar token</button>
+    </div>
+    <button class="close" id="closeInvite">Fechar</button>
+  </div>
+</div>
+
+<div class="invite-box" id="hiddenBox">
+  <div class="card">
+    <h3>Contatos escondidos</h3>
+    <p>Reative quem você escondeu da sua lista.</p>
+    <div id="hiddenContactsList"></div>
+    <button class="close" id="closeHidden">Fechar</button>
+  </div>
+</div>
+
+<div class="invite-box" id="rotateBox">
+  <div class="card">
+    <h3>Token trocado</h3>
+    <p>Guarde o novo token — o antigo parou de funcionar agora. Suas conversas, contatos e histórico continuam todos aqui.</p>
+    <div class="token-result" style="display:block;">
+      <div class="code" id="rotatedTokenCode"></div>
+      <button type="button" id="copyRotatedBtn" style="background: #F7F8FA; color: var(--header); border: 1px solid var(--divider);">Copiar token</button>
+    </div>
+    <button class="close" id="closeRotate">Entendi, fechar</button>
+  </div>
+</div>
+
+<div class="invite-box" id="setRecoveryBox">
+  <div class="card">
+    <h3>Proteja suas mensagens</h3>
+    <p>Crie uma senha de recuperação. Se você trocar de celular ou limpar o navegador, é ela que traz suas conversas cifradas de volta — sem essa senha, não tem como recuperar.</p>
+    <label for="recoveryPasswordInput" style="display:block;font-size:0.78rem;color:var(--text-dim);margin-bottom:5px;font-weight:500;">Senha de recuperação</label>
+    <input type="password" id="recoveryPasswordInput" placeholder="crie uma senha" autocomplete="off" style="width:100%;background:#F7F8FA;border:1px solid var(--divider);border-radius:8px;padding:11px 12px;margin-bottom:14px;font-family:inherit;font-size:0.95rem;">
+    <label for="recoveryPasswordConfirm" style="display:block;font-size:0.78rem;color:var(--text-dim);margin-bottom:5px;font-weight:500;">Confirme a senha</label>
+    <input type="password" id="recoveryPasswordConfirm" placeholder="digite de novo" autocomplete="off" style="width:100%;background:#F7F8FA;border:1px solid var(--divider);border-radius:8px;padding:11px 12px;margin-bottom:14px;font-family:inherit;font-size:0.95rem;">
+    <div class="error-msg" id="setRecoveryError" style="display:none;"></div>
+    <button id="saveRecoveryBtn">Salvar senha de recuperação</button>
+    <button class="close" id="skipRecoveryBtn">Agora não</button>
+  </div>
+</div>
+
+<div class="invite-box" id="recoverKeyBox">
+  <div class="card">
+    <h3>Recuperar suas mensagens</h3>
+    <p>Esse token já tem mensagens cifradas de outro aparelho. Digite sua senha de recuperação pra continuar lendo elas aqui.</p>
+    <input type="password" id="recoverPasswordInput" placeholder="senha de recuperação" autocomplete="off" style="width:100%;background:#F7F8FA;border:1px solid var(--divider);border-radius:8px;padding:11px 12px;margin-bottom:14px;font-family:inherit;font-size:0.95rem;">
+    <div class="error-msg" id="recoverKeyError" style="display:none;"></div>
+    <button id="tryRecoverBtn">Recuperar</button>
+    <button class="close" id="skipRecoverBtn">Não sei a senha, começar do zero</button>
+  </div>
+</div>
+
+<script>
+// --- Toda vez que publicar uma versão nova, muda esse valor (data/hora, por exemplo) ---
+// É assim que o app detecta que existe uma atualização disponível.
+const APP_VERSION = '2026-09-16-07';
+// -------------------------------------------------------
+
+// --- Preencha com os dados do seu projeto Supabase ---
+const SUPABASE_URL = 'https://tjalojliilltgxxpgwkl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqYWxvamxpaWxsdGd4eHBnd2tsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyODA3MTUsImV4cCI6MjEwNDg1NjcxNX0.iXgKfZLmwa4WlEWl8pzADFnK96mY1Ou8FTH5vy-U8cY';
+// -------------------------------------------------------
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Instala o cache do app assim que a página abre, inclusive antes do login.
+// Assim a tela inicial fica disponível quando o aparelho estiver sem internet.
+if ('serviceWorker' in navigator && (location.protocol === 'http:' || location.protocol === 'https:')) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+// ---------- Tema claro/escuro ----------
+const THEME_STORAGE = 'chatTheme';
+function applyTheme(theme) {
+  document.body.classList.toggle('dark', theme === 'dark');
+  const sunIcon = document.getElementById('themeIconSun');
+  const moonIcon = document.getElementById('themeIconMoon');
+  const label = document.getElementById('themeToggleLabel');
+  if (sunIcon && moonIcon && label) {
+    if (theme === 'dark') {
+      sunIcon.style.display = 'none';
+      moonIcon.style.display = 'block';
+      label.textContent = 'Modo claro';
+    } else {
+      sunIcon.style.display = 'block';
+      moonIcon.style.display = 'none';
+      label.textContent = 'Modo escuro';
+    }
+  }
+}
+function getSavedTheme() {
+  try { return localStorage.getItem(THEME_STORAGE) || 'light'; } catch (e) { return 'light'; }
+}
+applyTheme(getSavedTheme());
+
+
+// ---------- Checagem de nova versão publicada ----------
+async function checkForNewVersion() {
+  try {
+    const res = await fetch('./index.html?_=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const text = await res.text();
+    const match = text.match(/const APP_VERSION = '([^']+)'/);
+    if (match && match[1] && match[1] !== APP_VERSION) {
+      showUpdateBanner();
+    }
+  } catch (e) { /* sem internet ou falha passageira, tenta de novo depois */ }
+}
+
+function showUpdateBanner() {
+  if (document.getElementById('updateBanner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'updateBanner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:70;background:#008069;color:white;font-size:0.82rem;padding:9px 14px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;text-align:center;';
+  banner.innerHTML = `<span>✨ Tem uma versão nova do app.</span>
+    <button type="button" id="updateReloadBtn" style="width:auto;padding:4px 14px;font-size:0.78rem;background:white;color:var(--header);border:none;border-radius:14px;font-weight:600;">Atualizar agora</button>`;
+  document.body.appendChild(banner);
+  document.getElementById('updateReloadBtn').addEventListener('click', () => location.reload());
+}
+
+// checa ao abrir, quando volta a ficar em primeiro plano, e a cada 5 minutos
+setTimeout(checkForNewVersion, 3000);
+setInterval(checkForNewVersion, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkForNewVersion();
+});
+
+const SESSION_KEY = 'chatTokenSession';
+const SESSION_DAYS = 30;
+const VAPID_PUBLIC_KEY = 'BJDQj2CtnR5Bv7_DYbOLIl4oVjTyN9vDzKubgNEcrNgmugYKXEyocDEuhBEqbSgUM9_MH1F38DfmvCsviCjqUeg';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+// ---------- Criptografia ponta a ponta (ECDH P-256 + AES-GCM 256) ----------
+const E2EE_PRIVATE_KEY_STORAGE = 'e2eePrivateKeyJWK';
+const E2EE_PUBLIC_KEY_STORAGE = 'e2eePublicKeyJWK';
+let myKeyPair = null; // { privateKey, publicKey } CryptoKey objects
+let myPublicKeyJWK = null; // string, o que vai pro servidor
+const sharedKeyCache = new Map(); // contact_token -> CryptoKey (AES-GCM derivada)
+
+function e2eeBufToBase64(buf) {
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+function e2eeBase64ToBuf(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+// ---------- Cache offline (última lista de contatos e mensagens vistas) ----------
+// Guarda uma cópia local do que já foi carregado, pra mostrar algo (desatualizado,
+// só leitura) quando não tiver internet, em vez de tela em branco.
+function offlineCacheKey(suffix) {
+  return `chatOfflineCache_${myToken}_${suffix}`;
+}
+function saveContactsCache(contacts, legacyLast) {
+  try {
+    localStorage.setItem(offlineCacheKey('contacts'), JSON.stringify({ contacts, legacyLast, savedAt: Date.now() }));
+  } catch (e) { /* localStorage indisponível ou cheio, segue sem cache */ }
+}
+function loadContactsCache() {
+  try {
+    const raw = localStorage.getItem(offlineCacheKey('contacts'));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function saveConversationCache(contactToken, messages) {
+  try {
+    localStorage.setItem(offlineCacheKey('conv_' + contactToken), JSON.stringify({ messages, savedAt: Date.now() }));
+  } catch (e) {}
+}
+function loadConversationCache(contactToken) {
+  try {
+    const raw = localStorage.getItem(offlineCacheKey('conv_' + contactToken));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function fmtCacheAge(savedAt) {
+  const mins = Math.round((Date.now() - savedAt) / 60000);
+  if (mins < 1) return 'agora mesmo';
+  if (mins < 60) return `há ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `há ${hours}h`;
+  return `há ${Math.round(hours / 24)}d`;
+}
+function showOfflineBanner(savedAt) {
+  let banner = document.getElementById('offlineBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'offlineBanner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:55;background:#5A5F63;color:white;font-size:0.75rem;text-align:center;padding:6px 10px;';
+    document.body.appendChild(banner);
+  }
+  banner.textContent = `📴 Sem internet — mostrando dados salvos (${fmtCacheAge(savedAt)})`;
+}
+function hideOfflineBanner() {
+  const banner = document.getElementById('offlineBanner');
+  if (banner) banner.remove();
+}
+window.addEventListener('online', () => {
+  hideOfflineBanner();
+  loadContacts();
+  if (selectedContact) loadConversation();
+});
+window.addEventListener('offline', () => {
+  const cache = loadContactsCache();
+  if (cache) showOfflineBanner(cache.savedAt);
+});
+
+// ---------- Aviso de troca de chave (tipo "código de segurança mudou" do WhatsApp/Signal) ----------
+const KNOWN_KEYS_STORAGE = 'chatKnownContactKeys';
+
+function getKnownContactKeys() {
+  try {
+    const raw = localStorage.getItem(KNOWN_KEYS_STORAGE);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveKnownContactKeys(map) {
+  try { localStorage.setItem(KNOWN_KEYS_STORAGE, JSON.stringify(map)); } catch (e) {}
+}
+
+// Compara a chave atual do contato com a última chave que a gente conhecia dele.
+// Retorna true se mudou (e ainda não foi confirmada pelo usuário nesta troca).
+function didContactKeyChange(contactToken, currentPublicKeyJWK) {
+  if (!currentPublicKeyJWK) return false;
+  const known = getKnownContactKeys();
+  const previous = known[contactToken];
+  if (!previous) {
+    // primeira vez vendo essa pessoa: só registra, sem avisar (não tem o que comparar ainda)
+    known[contactToken] = currentPublicKeyJWK;
+    saveKnownContactKeys(known);
+    return false;
+  }
+  return previous !== currentPublicKeyJWK;
+}
+
+// Chamado quando o usuário confirma que está ciente da troca e quer continuar.
+function acknowledgeContactKeyChange(contactToken, newPublicKeyJWK) {
+  const known = getKnownContactKeys();
+  known[contactToken] = newPublicKeyJWK;
+  saveKnownContactKeys(known);
+}
+
+function setRecoveryPasswordFlow() {
+  const box = document.getElementById('setRecoveryBox');
+  const pass1 = document.getElementById('recoveryPasswordInput');
+  const pass2 = document.getElementById('recoveryPasswordConfirm');
+  const errorEl = document.getElementById('setRecoveryError');
+  const saveBtn = document.getElementById('saveRecoveryBtn');
+  const skipBtn = document.getElementById('skipRecoveryBtn');
+  pass1.value = ''; pass2.value = ''; errorEl.style.display = 'none';
+  box.classList.add('active');
+
+  return new Promise((resolve) => {
+    function cleanup() {
+      saveBtn.removeEventListener('click', onSave);
+      skipBtn.removeEventListener('click', onSkip);
+      box.classList.remove('active');
+    }
+    function onSave() {
+      const p1 = pass1.value;
+      const p2 = pass2.value;
+      if (!p1 || p1.length < 4) {
+        errorEl.textContent = 'A senha precisa ter pelo menos 4 caracteres.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      if (p1 !== p2) {
+        errorEl.textContent = 'As senhas não são iguais.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      cleanup();
+      resolve(p1);
+    }
+    function onSkip() {
+      cleanup();
+      resolve(null);
+    }
+    saveBtn.addEventListener('click', onSave);
+    skipBtn.addEventListener('click', onSkip);
+  });
+}
+
+function recoverPrivateKeyFlow(saltB64, ivB64, encKeyB64) {
+  const box = document.getElementById('recoverKeyBox');
+  const passInput = document.getElementById('recoverPasswordInput');
+  const errorEl = document.getElementById('recoverKeyError');
+  const tryBtn = document.getElementById('tryRecoverBtn');
+  const skipBtn = document.getElementById('skipRecoverBtn');
+  passInput.value = '';
+  errorEl.style.display = 'none';
+  box.classList.add('active');
+
+  return new Promise((resolve) => {
+    function cleanup() {
+      tryBtn.removeEventListener('click', onTry);
+      skipBtn.removeEventListener('click', onSkip);
+    }
+    async function onTry() {
+      const pwd = passInput.value;
+      if (!pwd) return;
+      tryBtn.disabled = true;
+      tryBtn.textContent = 'Verificando...';
+      try {
+        const jwkStr = await decryptPrivateKeyWithPassword(saltB64, ivB64, encKeyB64, pwd);
+        cleanup();
+        box.classList.remove('active');
+        resolve(jwkStr);
+      } catch (e) {
+        errorEl.textContent = 'Senha incorreta. Tenta de novo.';
+        errorEl.style.display = 'block';
+        tryBtn.disabled = false;
+        tryBtn.textContent = 'Recuperar';
+      }
+    }
+    function onSkip() {
+      const ok = confirm('Sem a senha, as mensagens cifradas antigas ficam ilegíveis pra sempre neste aparelho. Criar uma identidade nova mesmo assim?');
+      if (!ok) return;
+      cleanup();
+      box.classList.remove('active');
+      resolve(null);
+    }
+    tryBtn.addEventListener('click', onTry);
+    skipBtn.addEventListener('click', onSkip);
+  });
+}
+
+async function ensureE2eeKeys() {
+  if (!window.crypto || !window.crypto.subtle) return false; // navegador sem suporte
+  try {
+    const savedPriv = localStorage.getItem(E2EE_PRIVATE_KEY_STORAGE);
+    const savedPub = localStorage.getItem(E2EE_PUBLIC_KEY_STORAGE);
+
+    if (savedPriv && savedPub) {
+      const privateKey = await crypto.subtle.importKey(
+        'jwk', JSON.parse(savedPriv), { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']
+      );
+      const publicKey = await crypto.subtle.importKey(
+        'jwk', JSON.parse(savedPub), { name: 'ECDH', namedCurve: 'P-256' }, true, []
+      );
+      myKeyPair = { privateKey, publicKey };
+      myPublicKeyJWK = savedPub;
+      await sb.rpc('set_public_key', { p_token: myToken, p_public_key: myPublicKeyJWK });
+      return true;
+    }
+
+    // não tem chave neste aparelho: checa se existe backup de recuperação no servidor
+    let recoveredJwkStr = null;
+    try {
+      const { data: rec } = await sb.rpc('get_key_recovery', { p_token: myToken });
+      const row = Array.isArray(rec) ? rec[0] : rec;
+      if (row && row.recovery_encrypted_key) {
+        recoveredJwkStr = await recoverPrivateKeyFlow(row.recovery_salt, row.recovery_iv, row.recovery_encrypted_key);
+      }
+    } catch (e) { /* sem backup ou erro ao checar, segue pro caminho de chave nova */ }
+
+    let privJwk, pubJwk, pair;
+    if (recoveredJwkStr) {
+      privJwk = JSON.parse(recoveredJwkStr);
+      const privateKey = await crypto.subtle.importKey('jwk', privJwk, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+      pubJwk = Object.assign({}, privJwk);
+      delete pubJwk.d;
+      pubJwk.key_ops = [];
+      const publicKey = await crypto.subtle.importKey('jwk', pubJwk, { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+      myKeyPair = { privateKey, publicKey };
+      localStorage.setItem(E2EE_PRIVATE_KEY_STORAGE, JSON.stringify(privJwk));
+      localStorage.setItem(E2EE_PUBLIC_KEY_STORAGE, JSON.stringify(pubJwk));
+      myPublicKeyJWK = JSON.stringify(pubJwk);
+      await sb.rpc('set_public_key', { p_token: myToken, p_public_key: myPublicKeyJWK });
+      return true;
+    }
+
+    // chave nova (primeira vez, ou optou por não recuperar)
+    pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+    pubJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+    privJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+    localStorage.setItem(E2EE_PRIVATE_KEY_STORAGE, JSON.stringify(privJwk));
+    localStorage.setItem(E2EE_PUBLIC_KEY_STORAGE, JSON.stringify(pubJwk));
+    myKeyPair = pair;
+    myPublicKeyJWK = JSON.stringify(pubJwk);
+    await sb.rpc('set_public_key', { p_token: myToken, p_public_key: myPublicKeyJWK });
+
+    const password = await setRecoveryPasswordFlow();
+    if (password) {
+      const enc = await encryptPrivateKeyWithPassword(JSON.stringify(privJwk), password);
+      await sb.rpc('save_key_recovery', { p_token: myToken, p_salt: enc.salt, p_iv: enc.iv, p_encrypted_key: enc.encryptedKey });
+    }
+
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function getSharedKeyFor(contactToken, contactPublicKeyJWK) {
+  if (!myKeyPair || !contactPublicKeyJWK) return null;
+  // a chave do cache inclui a chave pública atual do contato — se ela mudar
+  // (trocou de aparelho, limpou dados, etc.), o cache antigo vira obsoleto sozinho
+  const cacheKey = contactToken + '|' + contactPublicKeyJWK;
+  if (sharedKeyCache.has(cacheKey)) return sharedKeyCache.get(cacheKey);
+  try {
+    const theirPublicKey = await crypto.subtle.importKey(
+      'jwk', JSON.parse(contactPublicKeyJWK), { name: 'ECDH', namedCurve: 'P-256' }, true, []
+    );
+    const sharedKey = await crypto.subtle.deriveKey(
+      { name: 'ECDH', public: theirPublicKey },
+      myKeyPair.privateKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+    sharedKeyCache.set(cacheKey, sharedKey);
+    return sharedKey;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function e2eeEncrypt(sharedKey, text) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(text);
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, sharedKey, encoded);
+  return { body: e2eeBufToBase64(ciphertext), nonce: e2eeBufToBase64(iv) };
+}
+
+async function e2eeDecrypt(sharedKey, bodyBase64, nonceBase64) {
+  const iv = e2eeBase64ToBuf(nonceBase64);
+  const ciphertext = e2eeBase64ToBuf(bodyBase64);
+  const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedKey, ciphertext);
+  return new TextDecoder().decode(plainBuf);
+}
+
+async function deriveKeyFromPassword(password, saltBuf) {
+  const passKey = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']
+  );
+  return await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: saltBuf, iterations: 150000, hash: 'SHA-256' },
+    passKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptPrivateKeyWithPassword(privateKeyJwkStr, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const passDerivedKey = await deriveKeyFromPassword(password, salt);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv }, passDerivedKey, new TextEncoder().encode(privateKeyJwkStr)
+  );
+  return {
+    salt: e2eeBufToBase64(salt),
+    iv: e2eeBufToBase64(iv),
+    encryptedKey: e2eeBufToBase64(ciphertext)
+  };
+}
+
+async function decryptPrivateKeyWithPassword(saltB64, ivB64, encryptedKeyB64, password) {
+  const salt = new Uint8Array(e2eeBase64ToBuf(saltB64));
+  const iv = e2eeBase64ToBuf(ivB64);
+  const ciphertext = e2eeBase64ToBuf(encryptedKeyB64);
+  const passDerivedKey = await deriveKeyFromPassword(password, salt);
+  const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, passDerivedKey, ciphertext);
+  return new TextDecoder().decode(plainBuf);
+}
+
+let myToken = null;
+let myName = null;
+let pollTimer = null;
+let selectedContact = null; // { token, name, isLegacy }
+let contactsTimer = null;
+let latestContacts = [];
+let lastRenderedCount = 0;
+let lastRenderedSignature = '';
+let lastContactsSignature = '';
+let presenceChannel = null;
+let messageRealtimeChannel = null;
+let onlineTokens = new Set();
+let sendInFlight = false;
+
+const AVATAR_COLORS = ['#F56565','#ED8936','#ECC94B','#48BB78','#38B2AC','#4299E1','#667EEA','#9F7AEA','#ED64A6'];
+
+function avatarColor(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+function setAvatar(el, name) {
+  el.textContent = (name || '?').trim().charAt(0).toUpperCase();
+  el.style.background = avatarColor(name || '?');
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(`pane-${tab.dataset.tab}`).classList.add('active');
+  });
+});
+
+// ---------- Create room ----------
+document.getElementById('createBtn').addEventListener('click', async () => {
+  const nameInput = document.getElementById('creatorName');
+  const passwordInput = document.getElementById('creatorPassword');
+  const errorEl = document.getElementById('createError');
+  const name = nameInput.value.trim();
+  const password = passwordInput.value;
+  errorEl.style.display = 'none';
+
+  if (!name || !password) {
+    errorEl.textContent = 'Escreva seu nome e o e-mail antes de continuar.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('createBtn');
+  btn.disabled = true;
+  btn.textContent = 'Criando...';
+
+  const { data, error } = await sb.rpc('create_room', { p_name: name, p_email: password });
+
+  if (error) {
+    errorEl.textContent = error.message.includes('acesso negado') ? 'E-mail não autorizado.' : 'Não deu para criar a sala. ' + error.message;
+    errorEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Criar sala e gerar meu token';
+    return;
+  }
+
+  document.getElementById('createdTokenCode').textContent = data;
+  document.getElementById('createResult').style.display = 'block';
+  nameInput.disabled = true;
+  passwordInput.disabled = true;
+  btn.style.display = 'none';
+  document.getElementById('enterAfterCreateBtn').style.display = 'block';
+
+  myToken = data;
+  myName = name;
+  saveSession(myToken, myName);
+});
+
+document.getElementById('enterAfterCreateBtn').addEventListener('click', enterChat);
+
+document.getElementById('copyCreatedBtn').addEventListener('click', () => {
+  const code = document.getElementById('createdTokenCode').textContent;
+  navigator.clipboard.writeText(code);
+  const btn = document.getElementById('copyCreatedBtn');
+  btn.textContent = 'Copiado!';
+  setTimeout(() => { btn.textContent = 'Copiar token'; }, 1500);
+});
+
+// ---------- Join room ----------
+document.getElementById('joinBtn').addEventListener('click', async () => {
+  const nameInput = document.getElementById('joinName');
+  const tokenInput = document.getElementById('joinToken');
+  const errorEl = document.getElementById('joinError');
+  const name = nameInput.value.trim();
+  const token = tokenInput.value.trim();
+  errorEl.style.display = 'none';
+
+  if (!name || !token) {
+    errorEl.textContent = 'Preencha seu nome e o token.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('joinBtn');
+  btn.disabled = true;
+  btn.textContent = 'Verificando...';
+
+  const { data, error } = await sb.rpc('join_room', { p_token: token, p_name: name });
+
+  if (error || !data) {
+    errorEl.textContent = 'Esse token não é válido nesta sala.';
+    errorEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Entrar na sala';
+    return;
+  }
+
+  myToken = token;
+  myName = name;
+  saveSession(myToken, myName);
+  enterChat();
+});
+
+// ---------- Chat ----------
+function enterChat() {
+  document.getElementById('access').style.display = 'none';
+  document.getElementById('chatScreen').style.display = 'flex';
+  document.getElementById('youName').textContent = myName;
+  setAvatar(document.getElementById('youAvatar'), myName);
+  ensureE2eeKeys().then(async () => {
+    await loadContacts();
+    runStartupKeyHealthCheck();
+  });
+  contactsTimer = setInterval(loadContacts, 20000);
+  setupPush();
+  setupPresence();
+  setupMessageRealtime();
+}
+
+// Roda uma vez ao entrar: confere em segundo plano se a chave deste aparelho
+// está decifrando as conversas normalmente, e avisa cedo se não estiver.
+async function runStartupKeyHealthCheck() {
+  try {
+    const health = await checkCurrentKeyHealthy();
+    if (health.failedNames.length > 0) {
+      showKeyHealthBanner(health.failedNames);
+    }
+  } catch (e) { /* checagem é só um bônus, nunca deve travar a entrada no chat */ }
+}
+
+function showKeyHealthBanner(failedNames) {
+  if (document.getElementById('keyHealthBanner')) return;
+  const nomes = failedNames.join(', ');
+  const banner = document.createElement('div');
+  banner.id = 'keyHealthBanner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:60;background:#A13A3A;color:white;font-size:0.78rem;padding:8px 14px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;text-align:center;';
+  banner.innerHTML = `<span>🔒 A chave deste aparelho não está abrindo as mensagens de: ${escapeHtml(nomes)}.</span>
+    <button type="button" id="keyHealthDismissBtn" style="width:auto;padding:3px 10px;font-size:0.72rem;background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.5);">Entendi</button>`;
+  document.body.appendChild(banner);
+  document.getElementById('keyHealthDismissBtn').addEventListener('click', () => banner.remove());
+}
+
+// ---------- Presença (quem está online) ----------
+function setupPresence() {
+  presenceChannel = sb.channel('presence-mensagem3d', {
+    config: { presence: { key: myToken } }
+  });
+
+  presenceChannel.on('presence', { event: 'sync' }, () => {
+    const state = presenceChannel.presenceState();
+    onlineTokens = new Set(Object.keys(state));
+    updateOnlineIndicators();
+  });
+
+  presenceChannel.subscribe(async (status) => {
+    if (status === 'SUBSCRIBED') {
+      await presenceChannel.track({ name: myName, online_at: new Date().toISOString() });
+    }
+  });
+}
+
+// ---------- Tempo real: avisa na hora quando chega mensagem nova ----------
+// É só um acelerador: se isso falhar por qualquer motivo, o polling normal
+// (a cada 5s/7s) continua funcionando exatamente como sempre funcionou.
+async function setupMessageRealtime() {
+  try {
+    await sb.realtime.setAuth();
+    messageRealtimeChannel = sb.channel(`msg:${myToken}`, { config: { private: true } });
+
+    messageRealtimeChannel.on('broadcast', { event: 'INSERT' }, (payload) => {
+      const record = payload && payload.payload && payload.payload.record;
+      if (!record) return;
+      if (selectedContact && !selectedContact.isLegacy && record.token === selectedContact.token) {
+        loadConversation();
+      } else {
+        loadContacts();
+      }
+    });
+
+    messageRealtimeChannel.subscribe();
+  } catch (e) { /* sem tempo real agora, mas o polling cobre isso */ }
+}
+
+function teardownMessageRealtime() {
+  if (messageRealtimeChannel) {
+    try { sb.removeChannel(messageRealtimeChannel); } catch (e) {}
+    messageRealtimeChannel = null;
+  }
+}
+
+function updateOnlineIndicators() {
+  document.querySelectorAll('#contactsList .contact-item[data-contact-token]').forEach(el => {
+    const avatar = el.querySelector('.avatar');
+    if (!avatar) return;
+    avatar.classList.toggle('online', onlineTokens.has(el.dataset.contactToken));
+  });
+
+  if (selectedContact && !selectedContact.isLegacy) {
+    const isOnline = onlineTokens.has(selectedContact.token);
+    document.getElementById('conversationAvatar').classList.toggle('online', isOnline);
+    document.getElementById('conversationSub').textContent = isOnline ? 'online' : '';
+  }
+}
+
+// ---------- Notificações push ----------
+async function setupPush() {
+  const btn = document.getElementById('notifyBtn');
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    btn.textContent = 'Notificações não suportadas neste navegador';
+    btn.disabled = true;
+    return;
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.register('sw.js');
+    const existingSub = await reg.pushManager.getSubscription();
+    if (existingSub && Notification.permission === 'granted') {
+      const subJson = existingSub.toJSON();
+      const { error: resyncError } = await sb.rpc('save_push_subscription', {
+        p_token: myToken,
+        p_endpoint: subJson.endpoint,
+        p_p256dh: subJson.keys.p256dh,
+        p_auth: subJson.keys.auth
+      });
+      if (!resyncError) btn.textContent = '🔔 Notificações ativadas';
+    }
+  } catch (e) {
+    // segue sem quebrar o chat
+  }
+
+  btn.addEventListener('click', async () => {
+    if (Notification.permission === 'denied') {
+      alert('As notificações estão bloqueadas nas configurações do navegador/app. Ative manualmente lá.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Ativando...';
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        btn.textContent = '🔔 Ativar notificações';
+        btn.disabled = false;
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+      }
+
+      const subJson = sub.toJSON();
+      const { error: saveError } = await sb.rpc('save_push_subscription', {
+        p_token: myToken,
+        p_endpoint: subJson.endpoint,
+        p_p256dh: subJson.keys.p256dh,
+        p_auth: subJson.keys.auth
+      });
+
+      if (saveError) {
+        btn.textContent = '🔔 Ativar notificações';
+        alert('Não foi possível salvar a inscrição no servidor. ' + saveError.message);
+        btn.disabled = false;
+        return;
+      }
+
+      btn.textContent = '🔔 Notificações ativadas';
+    } catch (e) {
+      btn.textContent = '🔔 Ativar notificações';
+      alert('Não foi possível ativar. ' + (e && e.message ? e.message : ''));
+    }
+    btn.disabled = false;
+  });
+}
+
+function showConnectionBanner(show) {
+  let banner = document.getElementById('connBanner');
+  if (show) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'connBanner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:50;background:#8C6534;color:white;font-size:0.75rem;text-align:center;padding:5px 10px;';
+      banner.textContent = 'Sem conexão — tentando de novo...';
+      document.body.appendChild(banner);
+    }
+  } else if (banner) {
+    banner.remove();
+  }
+}
+
+async function loadContacts() {
+  const [{ data, error }, legacyResult] = await Promise.all([
+    sb.rpc('get_contacts', { p_token: myToken }),
+    sb.rpc('get_legacy_messages', { p_token: myToken })
+  ]);
+  const listEl = document.getElementById('contactsList');
+
+  let usingOfflineCache = false;
+  let effectiveData = data;
+  let effectiveLegacyLast = null;
+
+  if (error) {
+    const isInvalidToken = error.message && error.message.includes('token invalido');
+    if (isInvalidToken) {
+      clearInterval(contactsTimer);
+      clearInterval(pollTimer);
+      clearSession();
+      document.getElementById('chatScreen').innerHTML = `<div class="conn-error">Seu token deixou de ser válido nesta sala.</div>`;
+      return;
+    }
+    // erro de rede/conexão: não apaga a sessão, tenta usar o que tiver salvo no aparelho
+    showConnectionBanner(true);
+    const cache = loadContactsCache();
+    if (!cache) return; // sem cache nenhum, nada pra mostrar — só espera reconectar
+    usingOfflineCache = true;
+    effectiveData = cache.contacts;
+    effectiveLegacyLast = cache.legacyLast;
+    showOfflineBanner(cache.savedAt);
+  } else {
+    showConnectionBanner(false);
+    hideOfflineBanner();
+    const legacyData = (!legacyResult.error && legacyResult.data) ? legacyResult.data : [];
+    effectiveLegacyLast = legacyData.length > 0 ? legacyData[legacyData.length - 1] : null;
+    saveContactsCache(effectiveData || [], effectiveLegacyLast);
+  }
+
+  latestContacts = effectiveData || [];
+  const legacyLast = effectiveLegacyLast;
+
+  const contactsSignature = JSON.stringify({
+    sel: selectedContact ? (selectedContact.isLegacy ? '__legacy__' : selectedContact.token) : null,
+    legacy: legacyLast ? legacyLast.created_at + legacyLast.body : null,
+    list: latestContacts.map(c => `${c.contact_token}:${c.contact_name}:${c.last_message}:${c.last_message_at}:${c.unread_count}:${onlineTokens.has(c.contact_token)}`),
+    offline: usingOfflineCache
+  });
+  if (contactsSignature === lastContactsSignature) {
+    return; // nada mudou, evita redesenhar e piscar a lista
+  }
+  lastContactsSignature = contactsSignature;
+
+  if (latestContacts.length === 0 && !legacyLast) {
+    listEl.innerHTML = '<div class="contacts-empty">Ainda não tem ninguém na sala. Toque em "Convidar alguém" para trazer alguém.</div>';
+    return;
+  }
+
+  // Monta tudo num fragmento fora da tela primeiro — só troca no DOM real
+  // quando estiver pronto, pra não deixar a lista em branco piscando no meio do caminho.
+  const fragment = document.createDocumentFragment();
+
+  if (legacyLast) {
+    const div = document.createElement('div');
+    div.className = 'contact-item legacy' + (selectedContact && selectedContact.isLegacy ? ' active' : '');
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = '🕓';
+
+    const info = document.createElement('div');
+    info.className = 'contact-info';
+    info.innerHTML = `
+      <div class="contact-row1">
+        <span class="contact-name">Histórico da sala</span>
+        <span class="contact-time">${fmtTime(legacyLast.created_at)}</span>
+      </div>
+      <div class="contact-row2">
+        <span class="contact-preview">${escapeHtml(legacyLast.body)}</span>
+      </div>`;
+
+    div.appendChild(avatar);
+    div.appendChild(info);
+    div.addEventListener('click', () => selectContact('__legacy__', 'Histórico da sala', true));
+    fragment.appendChild(div);
+  }
+
+  for (const c of latestContacts) {
+    const div = document.createElement('div');
+    div.className = 'contact-item' + (selectedContact && !selectedContact.isLegacy && selectedContact.token === c.contact_token ? ' active' : '');
+    div.dataset.contactToken = c.contact_token;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar' + (onlineTokens.has(c.contact_token) ? ' online' : '');
+    setAvatar(avatar, c.contact_name);
+
+    let previewText = c.last_message ? c.last_message : null;
+    if (c.last_message && c.last_message_nonce) {
+      const sk = await getSharedKeyFor(c.contact_token, c.contact_public_key);
+      if (sk) {
+        try { previewText = await e2eeDecrypt(sk, c.last_message, c.last_message_nonce); }
+        catch (e) { previewText = '🔒 mensagem'; }
+      } else {
+        previewText = '🔒 mensagem';
+      }
+    }
+
+    const info = document.createElement('div');
+    info.className = 'contact-info';
+    const preview = previewText ? escapeHtml(previewText) : 'Toque para conversar';
+    const time = c.last_message_at ? fmtTime(c.last_message_at) : '';
+    const isCurrentlyOpen = selectedContact && !selectedContact.isLegacy && selectedContact.token === c.contact_token;
+    const badge = (c.unread_count > 0 && !isCurrentlyOpen) ? `<span class="unread-badge">${c.unread_count}</span>` : '';
+    info.innerHTML = `
+      <div class="contact-row1">
+        <span class="contact-name">${escapeHtml(c.contact_name)}</span>
+        <span class="contact-time">${time}</span>
+      </div>
+      <div class="contact-row2">
+        <span class="contact-preview">${preview}</span>
+        ${badge}
+      </div>`;
+
+    div.appendChild(avatar);
+    div.appendChild(info);
+
+    const hideBtn = document.createElement('span');
+    hideBtn.className = 'hide-contact';
+    hideBtn.title = 'Esconder contato';
+    hideBtn.textContent = '✕';
+    hideBtn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const ok = confirm(`Esconder "${c.contact_name}" da sua lista? Se ela mandar mensagem de novo, volta a aparecer.`);
+      if (!ok) return;
+      await sb.rpc('hide_contact', { p_token: myToken, p_contact_token: c.contact_token });
+      if (selectedContact && !selectedContact.isLegacy && selectedContact.token === c.contact_token) {
+        selectedContact = null;
+        document.getElementById('chatScreen').classList.remove('show-conversation');
+        document.getElementById('conversationTitle').textContent = 'Escolha alguém para conversar';
+        document.getElementById('conversationSub').textContent = '';
+        document.getElementById('sendForm').style.display = 'none';
+        renderMessages([]);
+      }
+      loadContacts();
+    });
+    div.appendChild(hideBtn);
+
+    div.addEventListener('click', () => selectContact(c.contact_token, c.contact_name, false, c.contact_public_key));
+    fragment.appendChild(div);
+  }
+
+  // troca tudo de uma vez só — sem instante em branco no meio
+  listEl.innerHTML = '';
+  listEl.appendChild(fragment);
+}
+
+async function selectContact(token, name, isLegacy, contactPublicKey) {
+  // Marca como lida IMEDIATAMENTE, antes de qualquer outra coisa —
+  // assim nada que aconteça depois nesta função pode impedir isso de disparar.
+  if (!isLegacy) {
+    sb.rpc('mark_read', { p_token: myToken, p_with_token: token }).then(({ error }) => {
+      if (error) console.error('Falha ao marcar como lida:', error);
+    });
+  }
+  if (selectedContact && !selectedContact.isLegacy && selectedContact.token !== token) {
+    sb.rpc('mark_read', { p_token: myToken, p_with_token: selectedContact.token });
+  }
+
+  selectedContact = { token, name, isLegacy: !!isLegacy, publicKey: contactPublicKey || null };
+
+  // limpa o rascunho da conversa anterior para não "vazar" para este contato
+  const msgInputEl = document.getElementById('msgInput');
+  if (msgInputEl) msgInputEl.value = '';
+
+  if (!isLegacy && !selectedContact.publicKey) {
+    try {
+      const { data } = await sb.rpc('get_public_key', { p_token: myToken, p_of_token: token });
+      selectedContact.publicKey = data || null;
+    } catch (e) { /* segue sem, mensagens cifradas ficarão ilegíveis até ter a chave */ }
+  }
+  document.getElementById('chatScreen').classList.add('show-conversation');
+  document.getElementById('conversationTitle').textContent = name;
+  document.getElementById('conversationSub').textContent = isLegacy ? 'somente leitura' : '';
+  setAvatar(document.getElementById('conversationAvatar'), name);
+  document.getElementById('sendForm').style.display = isLegacy ? 'none' : 'flex';
+
+  const existingNote = document.getElementById('readOnlyNote');
+  if (existingNote) existingNote.remove();
+  const existingKeyWarning = document.getElementById('keyChangedNote');
+  if (existingKeyWarning) existingKeyWarning.remove();
+
+  if (isLegacy) {
+    const note = document.createElement('div');
+    note.id = 'readOnlyNote';
+    note.className = 'read-only-note';
+    note.style.display = 'flex';
+    note.style.alignItems = 'center';
+    note.style.justifyContent = 'center';
+    note.style.gap = '10px';
+    note.innerHTML = `<span>Mensagens de antes das conversas privadas existirem.</span>
+      <button id="clearHistoryBtn" type="button" style="width:auto;padding:4px 12px;font-size:0.75rem;background:var(--error);color:white;border-radius:14px;">Apagar histórico</button>`;
+    document.getElementById('conversationPane').insertBefore(note, document.getElementById('messages'));
+  } else if (selectedContact.publicKey && didContactKeyChange(token, selectedContact.publicKey)) {
+    const note = document.createElement('div');
+    note.id = 'keyChangedNote';
+    note.style.cssText = 'padding:10px 16px;background:#FBECEC;color:#A13A3A;font-size:0.8rem;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;text-align:center;';
+    note.innerHTML = `<span>🔒 O código de segurança com <b>${escapeHtml(name)}</b> mudou. Isso acontece se a pessoa trocou de aparelho — mas confirme com ela antes de continuar, por segurança.</span>
+      <button id="ackKeyChangeBtn" type="button" style="width:auto;padding:4px 12px;font-size:0.75rem;background:#A13A3A;color:white;border-radius:14px;">Entendi, confiar</button>`;
+    document.getElementById('conversationPane').insertBefore(note, document.getElementById('messages'));
+    document.getElementById('ackKeyChangeBtn').addEventListener('click', () => {
+      acknowledgeContactKeyChange(token, selectedContact.publicKey);
+      note.remove();
+    });
+  }
+
+  // limpa o selo de não lidas na hora, sem esperar o próximo ciclo (o mark_read já disparou lá em cima)
+  if (!isLegacy) {
+    const el = document.querySelector(`.contact-item[data-contact-token="${token}"]`);
+    if (el) {
+      const badge = el.querySelector('.unread-badge');
+      if (badge) badge.remove();
+    }
+  }
+
+  updateOnlineIndicators();
+
+  // carrega a conversa JÁ, em paralelo com tudo mais — é o que a pessoa quer ver primeiro
+  lastRenderedCount = 0;
+  lastRenderedSignature = '__none__';
+  loadConversation();
+  loadContacts();
+  clearInterval(pollTimer);
+  pollTimer = setInterval(loadConversation, 15000);
+}
+
+async function renderMessages(messages) {
+  const container = document.getElementById('messages');
+
+  if (!messages || messages.length === 0) {
+    container.innerHTML = '<div class="empty-state">Nenhuma mensagem ainda. Escreva a primeira.</div>';
+    return;
+  }
+
+  let sharedKey = null;
+  if (selectedContact && !selectedContact.isLegacy) {
+    sharedKey = await getSharedKeyFor(selectedContact.token, selectedContact.publicKey);
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const m of messages) {
+    const div = document.createElement('div');
+    div.className = 'msg' + (m.is_mine ? ' mine' : '');
+    const senderLine = m.is_mine ? '' : `<div class="sender">${escapeHtml(m.name)}</div>`;
+    const photoLine = m.image_url ? `<img class="photo" src="${escapeHtml(m.image_url)}" onclick="window.open('${escapeHtml(m.image_url)}','_blank')">` : '';
+
+    let bodyText = m.body;
+    if (m.body && m.nonce) {
+      if (sharedKey) {
+        try { bodyText = await e2eeDecrypt(sharedKey, m.body, m.nonce); }
+        catch (e) { bodyText = '🔒 Não foi possível abrir esta mensagem'; }
+      } else {
+        bodyText = '🔒 Mensagem cifrada';
+      }
+    }
+    const bodyLine = bodyText ? `<div class="body">${escapeHtml(bodyText)}</div>` : '';
+
+    const deleteLine = m.is_mine ? `<span class="delete-msg" data-id="${m.id}" title="Apagar">🗑</span>` : '';
+    let readReceipt = '';
+    if (m.is_mine && typeof m.is_read !== 'undefined') {
+      readReceipt = m.is_read
+        ? '<span class="read-receipt read" title="Lida">✓✓</span>'
+        : '<span class="read-receipt" title="Enviada">✓</span>';
+    }
+    div.innerHTML = `${senderLine}${photoLine}${bodyLine}<div class="time">${deleteLine}${fmtTime(m.created_at)}${readReceipt}</div>`;
+    fragment.appendChild(div);
+  }
+  container.innerHTML = '';
+  container.appendChild(fragment);
+
+  container.scrollTop = container.scrollHeight;
+}
+
+function conversationSignature(data) {
+  if (!data) return '';
+  return data.map(m => `${m.id}:${m.is_read}:${m.body || ''}:${m.image_url || ''}`).join('|');
+}
+
+async function loadConversation() {
+  if (!selectedContact || sendInFlight) return;
+  const rpcName = selectedContact.isLegacy ? 'get_legacy_messages' : 'get_conversation';
+  const params = selectedContact.isLegacy
+    ? { p_token: myToken }
+    : { p_token: myToken, p_with_token: selectedContact.token };
+  const { data, error } = await sb.rpc(rpcName, params);
+  if (error) {
+    if (!(error.message && error.message.includes('token invalido'))) {
+      showConnectionBanner(true);
+    }
+    // sem internet: se ainda não mostrou nada nessa conversa, usa a última cópia salva
+    if (!selectedContact.isLegacy && lastRenderedSignature === '__none__') {
+      const cache = loadConversationCache(selectedContact.token);
+      if (cache) {
+        showOfflineBanner(cache.savedAt);
+        lastRenderedCount = cache.messages.length;
+        lastRenderedSignature = conversationSignature(cache.messages);
+        await renderMessages(cache.messages);
+      }
+    }
+    return;
+  }
+  showConnectionBanner(false);
+  hideOfflineBanner();
+  if (!selectedContact.isLegacy) saveConversationCache(selectedContact.token, data || []);
+  const isNewCount = data && data.length !== lastRenderedCount;
+  const newSignature = conversationSignature(data);
+  const contentChanged = newSignature !== lastRenderedSignature;
+  lastRenderedCount = data ? data.length : 0;
+  if (contentChanged) {
+    lastRenderedSignature = newSignature;
+    await renderMessages(data);
+  }
+  if (!selectedContact.isLegacy && isNewCount) {
+    sb.rpc('mark_read', { p_token: myToken, p_with_token: selectedContact.token }).then(({ error }) => {
+      if (error) console.error('Falha ao marcar como lida (loadConversation):', error);
+    });
+  }
+}
+
+document.getElementById('sendForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if (!text || !myToken || !selectedContact) return;
+
+  const sharedKey = await getSharedKeyFor(selectedContact.token, selectedContact.publicKey);
+  if (!sharedKey) {
+    alert('Ainda não é possível enviar cifrado pra essa pessoa — ela precisa abrir o app pelo menos uma vez depois dessa atualização.');
+    return;
+  }
+
+  input.value = '';
+
+  // mostra a mensagem na hora, antes da resposta do servidor
+  const container = document.getElementById('messages');
+  const emptyState = container.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+  const tempDiv = document.createElement('div');
+  tempDiv.className = 'msg mine';
+  tempDiv.innerHTML = `<div class="body">${escapeHtml(text)}</div><div class="time">${fmtTime(new Date().toISOString())}<span class="read-receipt" title="Enviando...">🕓</span></div>`;
+  container.appendChild(tempDiv);
+  container.scrollTop = container.scrollHeight;
+
+  sendInFlight = true;
+  const encrypted = await e2eeEncrypt(sharedKey, text);
+  const { data, error } = await sb.rpc('send_message', {
+    p_token: myToken,
+    p_to_token: selectedContact.token,
+    p_text: encrypted.body,
+    p_nonce: encrypted.nonce
+  });
+  if (error || !data) {
+    sendInFlight = false;
+    tempDiv.remove();
+    input.value = text;
+    alert('Não foi possível enviar. Confira se o token ainda é válido.');
+    return;
+  }
+  sendInFlight = false;
+  loadConversation();
+});
+
+document.getElementById('backBtn').addEventListener('click', () => {
+  document.getElementById('chatScreen').classList.remove('show-conversation');
+  if (selectedContact && !selectedContact.isLegacy) {
+    sb.rpc('mark_read', { p_token: myToken, p_with_token: selectedContact.token });
+  }
+  clearInterval(pollTimer);
+  selectedContact = null;
+  loadContacts();
+});
+
+// ---------- Fotos ----------
+document.getElementById('attachBtn').addEventListener('click', () => {
+  if (!selectedContact || selectedContact.isLegacy) return;
+  document.getElementById('fileInput').click();
+});
+
+function compressImage(file, maxDimension = 1600, quality = 0.8) {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          if (width >= height) {
+            height = Math.round(height * (maxDimension / width));
+            width = maxDimension;
+          } else {
+            width = Math.round(width * (maxDimension / height));
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob && blob.size < file.size) {
+            resolve(blob);
+          } else {
+            resolve(file); // a compactada ficou maior ou falhou, usa a original
+          }
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => resolve(file); // não é imagem legível pelo canvas, usa original
+      img.src = url;
+    } catch (e) {
+      resolve(file);
+    }
+  });
+}
+
+document.getElementById('fileInput').addEventListener('change', async () => {
+  const fileInput = document.getElementById('fileInput');
+  const file = fileInput.files[0];
+  if (!file || !myToken || !selectedContact || selectedContact.isLegacy) return;
+
+  const attachBtn = document.getElementById('attachBtn');
+  attachBtn.disabled = true;
+  attachBtn.textContent = '⏳';
+
+  const compressed = await compressImage(file);
+  const ext = compressed === file ? file.name.split('.').pop() : 'jpg';
+  const path = `${myToken}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error: uploadError } = await sb.storage.from('chat-images').upload(path, compressed);
+
+  if (uploadError) {
+    alert('Não foi possível enviar a foto. ' + uploadError.message);
+    attachBtn.disabled = false;
+    attachBtn.textContent = '📎';
+    fileInput.value = '';
+    return;
+  }
+
+  const { data: urlData } = sb.storage.from('chat-images').getPublicUrl(path);
+
+  const { data, error } = await sb.rpc('send_message', {
+    p_token: myToken,
+    p_to_token: selectedContact.token,
+    p_text: '',
+    p_image_url: urlData.publicUrl
+  });
+
+  attachBtn.disabled = false;
+  attachBtn.textContent = '📎';
+  fileInput.value = '';
+
+  if (error || !data) {
+    alert('Não foi possível enviar a foto. Confira se o token ainda é válido.');
+    return;
+  }
+
+  loadConversation();
+});
+
+// ---------- Apagar mensagem própria ----------
+document.getElementById('messages').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.delete-msg');
+  if (!btn) return;
+  const ok = confirm('Apagar esta mensagem?');
+  if (!ok) return;
+  const { error } = await sb.rpc('delete_message', { p_token: myToken, p_message_id: Number(btn.dataset.id) });
+  if (error) {
+    alert('Não foi possível apagar a mensagem.');
+    return;
+  }
+  loadConversation();
+});
+
+// ---------- Apagar histórico ----------
+document.getElementById('conversationPane').addEventListener('click', async (e) => {
+  if (e.target && e.target.id === 'clearHistoryBtn') {
+    const ok = confirm('Isso apaga o histórico da sala para todo mundo, sem volta. Confirma?');
+    if (!ok) return;
+    const { error } = await sb.rpc('clear_legacy_messages', { p_token: myToken });
+    if (error) {
+      alert('Não foi possível apagar o histórico.');
+      return;
+    }
+    loadContacts();
+    loadConversation();
+  }
+});
+
+// ---------- Invite ----------
+document.getElementById('inviteBtn').addEventListener('click', () => {
+  document.getElementById('inviteBox').classList.add('active');
+});
+
+document.getElementById('closeInvite').addEventListener('click', () => {
+  document.getElementById('inviteBox').classList.remove('active');
+  document.getElementById('inviteResult').style.display = 'none';
+  document.getElementById('genInviteBtn').style.display = 'block';
+});
+
+document.getElementById('genInviteBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('genInviteBtn');
+  btn.disabled = true;
+  btn.textContent = 'Gerando...';
+
+  const { data, error } = await sb.rpc('generate_invite', { p_token: myToken });
+
+  if (error) {
+    alert('Não foi possível gerar o convite.');
+    btn.disabled = false;
+    btn.textContent = 'Gerar novo token';
+    return;
+  }
+
+  document.getElementById('inviteTokenCode').textContent = data;
+  document.getElementById('inviteResult').style.display = 'block';
+  btn.style.display = 'none';
+});
+
+document.getElementById('copyInviteBtn').addEventListener('click', () => {
+  const code = document.getElementById('inviteTokenCode').textContent;
+  navigator.clipboard.writeText(code);
+  const btn = document.getElementById('copyInviteBtn');
+  btn.textContent = 'Copiado!';
+  setTimeout(() => { btn.textContent = 'Copiar token'; }, 1500);
+});
+
+// ---------- Sessão salva (fica logado) ----------
+function saveSession(token, name) {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, name, savedAt: Date.now() }));
+  } catch (e) { /* localStorage indisponível, segue sem salvar */ }
+}
+
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    const ageMs = Date.now() - (session.savedAt || 0);
+    if (ageMs > SESSION_DAYS * 24 * 60 * 60 * 1000) {
+      clearSession();
+      return null;
+    }
+    return session;
+  } catch (e) {
+    return null;
+  }
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  const ok = confirm('Sair? Você vai precisar do token de novo para entrar.');
+  if (!ok) return;
+  clearInterval(contactsTimer);
+  clearInterval(pollTimer);
+
+  if (presenceChannel) {
+    try { await presenceChannel.untrack(); } catch (e) {}
+    sb.removeChannel(presenceChannel);
+    presenceChannel = null;
+  }
+  teardownMessageRealtime();
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await sb.rpc('delete_push_subscription', { p_endpoint: sub.endpoint });
+          await sub.unsubscribe();
+        }
+      }
+    }
+  } catch (e) { /* segue o logout mesmo se isso falhar */ }
+
+  clearSession();
+  myToken = null;
+  myName = null;
+  selectedContact = null;
+  document.getElementById('joinName').value = '';
+  document.getElementById('joinToken').value = '';
+  document.getElementById('chatScreen').style.display = 'none';
+  document.getElementById('access').style.display = 'flex';
+});
+
+// tenta entrar sozinho se já tiver sessão salva
+(function autoLogin() {
+  const session = loadSession();
+  if (session && session.token && session.name) {
+    myToken = session.token;
+    myName = session.name;
+    enterChat();
+  }
+})();
+
+// ---------- Mantém o campo de mensagem visível acima do teclado no iOS ----------
+if (window.visualViewport) {
+  const applyViewportHeight = () => {
+    const chatScreen = document.getElementById('chatScreen');
+    if (chatScreen && chatScreen.style.display === 'flex') {
+      const vv = window.visualViewport;
+      chatScreen.style.position = 'fixed';
+      chatScreen.style.left = '0px';
+      chatScreen.style.top = vv.offsetTop + 'px';
+      chatScreen.style.width = vv.width + 'px';
+      chatScreen.style.height = vv.height + 'px';
+      window.scrollTo(0, 0);
+    }
+  };
+  window.visualViewport.addEventListener('resize', applyViewportHeight);
+  window.visualViewport.addEventListener('scroll', applyViewportHeight);
+  applyViewportHeight();
+}
+
+// reforço: quando o campo de mensagem ganha foco, garante que ele fique visível
+document.getElementById('msgInput').addEventListener('focus', () => {
+  setTimeout(() => {
+    if (window.visualViewport) {
+      const chatScreen = document.getElementById('chatScreen');
+      const vv = window.visualViewport;
+      chatScreen.style.position = 'fixed';
+      chatScreen.style.left = '0px';
+      chatScreen.style.top = vv.offsetTop + 'px';
+      chatScreen.style.width = vv.width + 'px';
+      chatScreen.style.height = vv.height + 'px';
+    }
+    document.getElementById('sendForm').scrollIntoView({ block: 'end' });
+  }, 350);
+});
+
+['joinName', 'joinToken', 'creatorName'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('focus', () => {
+      setTimeout(() => el.scrollIntoView({ block: 'center' }), 350);
+    });
+  }
+});
+
+// ---------- Definir/trocar senha de recuperação a qualquer momento ----------
+// Confere se a chave ativa neste aparelho está realmente decifrando as conversas,
+// antes de deixar salvar ela como a senha de recuperação "oficial".
+async function checkCurrentKeyHealthy() {
+  const { data, error } = await sb.rpc('get_contacts', { p_token: myToken });
+  if (error || !data) return { checked: 0, failedNames: [] };
+
+  const failedNames = [];
+  for (const c of data) {
+    if (!c.last_message || !c.last_message_nonce || !c.contact_public_key) continue;
+    const sk = await getSharedKeyFor(c.contact_token, c.contact_public_key);
+    if (!sk) { failedNames.push(c.contact_name); continue; }
+    try {
+      await e2eeDecrypt(sk, c.last_message, c.last_message_nonce);
+    } catch (e) {
+      failedNames.push(c.contact_name);
+    }
+  }
+  return { checked: data.length, failedNames };
+}
+
+document.getElementById('setRecoveryMenuBtn').addEventListener('click', async () => {
+  if (!myKeyPair) {
+    alert('Suas chaves ainda não terminaram de carregar. Espera alguns segundos e tenta de novo.');
+    return;
+  }
+
+  const btnCheck = document.getElementById('setRecoveryMenuBtn');
+  btnCheck.disabled = true;
+  btnCheck.textContent = 'Verificando...';
+  const health = await checkCurrentKeyHealthy();
+  btnCheck.disabled = false;
+  btnCheck.textContent = '🛡️ Senha de recuperação';
+
+  if (health.failedNames.length > 0) {
+    const nomes = health.failedNames.join(', ');
+    const proceedAnyway = confirm(
+      `Atenção: a chave ativa neste aparelho não está conseguindo abrir as mensagens recentes de: ${nomes}.\n\n` +
+      `Isso é sinal de que essa NÃO é a chave certa pra salvar como recuperação — salvar agora pode travar você nessa chave desatualizada.\n\n` +
+      `Recomendado: cancelar e resolver isso primeiro (ou entrar no aparelho que já está lendo essas conversas normalmente).\n\n` +
+      `Quer salvar mesmo assim?`
+    );
+    if (!proceedAnyway) return;
+  }
+
+  const password = await setRecoveryPasswordFlow();
+  if (!password) return;
+
+  const btn = document.getElementById('setRecoveryMenuBtn');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  try {
+    const privJwk = await crypto.subtle.exportKey('jwk', myKeyPair.privateKey);
+    const enc = await encryptPrivateKeyWithPassword(JSON.stringify(privJwk), password);
+    const { error } = await sb.rpc('save_key_recovery', {
+      p_token: myToken, p_salt: enc.salt, p_iv: enc.iv, p_encrypted_key: enc.encryptedKey
+    });
+    if (error) {
+      alert('Não foi possível salvar a senha de recuperação.');
+    } else {
+      alert('Senha de recuperação salva! Guarde ela num lugar seguro.');
+    }
+  } catch (e) {
+    alert('Não foi possível salvar a senha de recuperação.');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🛡️ Senha de recuperação';
+});
+
+// ---------- Trocar token ----------
+document.getElementById('rotateTokenBtn').addEventListener('click', async () => {
+  const ok = confirm('Trocar seu token agora? O token atual para de funcionar na hora — use isso se acha que ele vazou.');
+  if (!ok) return;
+
+  const btn = document.getElementById('rotateTokenBtn');
+  btn.disabled = true;
+  btn.textContent = 'Trocando...';
+
+  const { data, error } = await sb.rpc('rotate_token', { p_token: myToken });
+
+  btn.disabled = false;
+  btn.textContent = '🔑 Trocar meu token';
+
+  if (error || !data) {
+    alert('Não foi possível trocar o token. Tente de novo.');
+    return;
+  }
+
+  myToken = data;
+  saveSession(myToken, myName);
+
+  if (presenceChannel) {
+    try { await presenceChannel.untrack(); } catch (e) {}
+    sb.removeChannel(presenceChannel);
+    presenceChannel = null;
+    setupPresence();
+  }
+
+  teardownMessageRealtime();
+  setupMessageRealtime();
+
+  document.getElementById('rotatedTokenCode').textContent = data;
+  document.getElementById('rotateBox').classList.add('active');
+});
+
+document.getElementById('closeRotate').addEventListener('click', () => {
+  document.getElementById('rotateBox').classList.remove('active');
+});
+
+document.getElementById('copyRotatedBtn').addEventListener('click', () => {
+  const code = document.getElementById('rotatedTokenCode').textContent;
+  navigator.clipboard.writeText(code);
+  const btn = document.getElementById('copyRotatedBtn');
+  btn.textContent = 'Copiado!';
+  setTimeout(() => { btn.textContent = 'Copiar token'; }, 1500);
+});
+
+// ---------- Menu de opções (⋮) ----------
+document.getElementById('themeToggleBtn').addEventListener('click', () => {
+  const newTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
+  applyTheme(newTheme);
+  try { localStorage.setItem(THEME_STORAGE, newTheme); } catch (e) {}
+});
+
+document.getElementById('menuToggleBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const menu = document.getElementById('optionsMenu');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('optionsMenu').addEventListener('click', (e) => {
+  if (e.target.tagName === 'BUTTON') {
+    document.getElementById('optionsMenu').style.display = 'none';
+  }
+});
+
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('optionsMenu');
+  if (menu.style.display !== 'none' && !menu.contains(e.target) && e.target.id !== 'menuToggleBtn') {
+    menu.style.display = 'none';
+  }
+});
+
+// ---------- Contatos escondidos ----------
+document.getElementById('hiddenContactsBtn').addEventListener('click', async () => {
+  document.getElementById('hiddenBox').classList.add('active');
+  await loadHiddenContacts();
+});
+
+document.getElementById('closeHidden').addEventListener('click', () => {
+  document.getElementById('hiddenBox').classList.remove('active');
+});
+
+async function loadHiddenContacts() {
+  const listEl = document.getElementById('hiddenContactsList');
+  listEl.innerHTML = '<div class="hidden-empty">Carregando...</div>';
+
+  const { data, error } = await sb.rpc('list_hidden_contacts', { p_token: myToken });
+  if (error) {
+    listEl.innerHTML = '<div class="hidden-empty">Não foi possível carregar.</div>';
+    return;
+  }
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="hidden-empty">Nenhum contato escondido.</div>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  data.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'hidden-contact-row';
+    row.innerHTML = `<span>${escapeHtml(c.contact_name)}</span>`;
+    const btn = document.createElement('button');
+    btn.textContent = 'Reativar';
+    btn.addEventListener('click', async () => {
+      await sb.rpc('unhide_contact', { p_token: myToken, p_contact_token: c.contact_token });
+      loadHiddenContacts();
+      loadContacts();
+    });
+    row.appendChild(btn);
+    listEl.appendChild(row);
+  });
+}
+</script>
+</body>
+</html>
