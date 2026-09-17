@@ -748,7 +748,7 @@
 <script>
 // --- Toda vez que publicar uma versão nova, muda esse valor (data/hora, por exemplo) ---
 // É assim que o app detecta que existe uma atualização disponível.
-const APP_VERSION = '2026-09-16-05';
+const APP_VERSION = '2026-09-16-06';
 // -------------------------------------------------------
 
 // --- Preencha com os dados do seu projeto Supabase ---
@@ -846,6 +846,66 @@ function e2eeBase64ToBuf(base64) {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;
 }
+
+// ---------- Cache offline (última lista de contatos e mensagens vistas) ----------
+// Guarda uma cópia local do que já foi carregado, pra mostrar algo (desatualizado,
+// só leitura) quando não tiver internet, em vez de tela em branco.
+function offlineCacheKey(suffix) {
+  return `chatOfflineCache_${myToken}_${suffix}`;
+}
+function saveContactsCache(contacts, legacyLast) {
+  try {
+    localStorage.setItem(offlineCacheKey('contacts'), JSON.stringify({ contacts, legacyLast, savedAt: Date.now() }));
+  } catch (e) { /* localStorage indisponível ou cheio, segue sem cache */ }
+}
+function loadContactsCache() {
+  try {
+    const raw = localStorage.getItem(offlineCacheKey('contacts'));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function saveConversationCache(contactToken, messages) {
+  try {
+    localStorage.setItem(offlineCacheKey('conv_' + contactToken), JSON.stringify({ messages, savedAt: Date.now() }));
+  } catch (e) {}
+}
+function loadConversationCache(contactToken) {
+  try {
+    const raw = localStorage.getItem(offlineCacheKey('conv_' + contactToken));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function fmtCacheAge(savedAt) {
+  const mins = Math.round((Date.now() - savedAt) / 60000);
+  if (mins < 1) return 'agora mesmo';
+  if (mins < 60) return `há ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `há ${hours}h`;
+  return `há ${Math.round(hours / 24)}d`;
+}
+function showOfflineBanner(savedAt) {
+  let banner = document.getElementById('offlineBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'offlineBanner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:55;background:#5A5F63;color:white;font-size:0.75rem;text-align:center;padding:6px 10px;';
+    document.body.appendChild(banner);
+  }
+  banner.textContent = `📴 Sem internet — mostrando dados salvos (${fmtCacheAge(savedAt)})`;
+}
+function hideOfflineBanner() {
+  const banner = document.getElementById('offlineBanner');
+  if (banner) banner.remove();
+}
+window.addEventListener('online', () => {
+  hideOfflineBanner();
+  loadContacts();
+  if (selectedContact) loadConversation();
+});
+window.addEventListener('offline', () => {
+  const cache = loadContactsCache();
+  if (cache) showOfflineBanner(cache.savedAt);
+});
 
 // ---------- Aviso de troca de chave (tipo "código de segurança mudou" do WhatsApp/Signal) ----------
 const KNOWN_KEYS_STORAGE = 'chatKnownContactKeys';
@@ -1443,6 +1503,10 @@ async function loadContacts() {
   ]);
   const listEl = document.getElementById('contactsList');
 
+  let usingOfflineCache = false;
+  let effectiveData = data;
+  let effectiveLegacyLast = null;
+
   if (error) {
     const isInvalidToken = error.message && error.message.includes('token invalido');
     if (isInvalidToken) {
@@ -1452,21 +1516,30 @@ async function loadContacts() {
       document.getElementById('chatScreen').innerHTML = `<div class="conn-error">Seu token deixou de ser válido nesta sala.</div>`;
       return;
     }
-    // erro de rede/conexão: não apaga a sessão, só avisa e tenta de novo no próximo ciclo
+    // erro de rede/conexão: não apaga a sessão, tenta usar o que tiver salvo no aparelho
     showConnectionBanner(true);
-    return;
+    const cache = loadContactsCache();
+    if (!cache) return; // sem cache nenhum, nada pra mostrar — só espera reconectar
+    usingOfflineCache = true;
+    effectiveData = cache.contacts;
+    effectiveLegacyLast = cache.legacyLast;
+    showOfflineBanner(cache.savedAt);
+  } else {
+    showConnectionBanner(false);
+    hideOfflineBanner();
+    const legacyData = (!legacyResult.error && legacyResult.data) ? legacyResult.data : [];
+    effectiveLegacyLast = legacyData.length > 0 ? legacyData[legacyData.length - 1] : null;
+    saveContactsCache(effectiveData || [], effectiveLegacyLast);
   }
-  showConnectionBanner(false);
 
-  latestContacts = data || [];
-
-  const legacyData = (!legacyResult.error && legacyResult.data) ? legacyResult.data : [];
-  const legacyLast = legacyData.length > 0 ? legacyData[legacyData.length - 1] : null;
+  latestContacts = effectiveData || [];
+  const legacyLast = effectiveLegacyLast;
 
   const contactsSignature = JSON.stringify({
     sel: selectedContact ? (selectedContact.isLegacy ? '__legacy__' : selectedContact.token) : null,
     legacy: legacyLast ? legacyLast.created_at + legacyLast.body : null,
-    list: latestContacts.map(c => `${c.contact_token}:${c.contact_name}:${c.last_message}:${c.last_message_at}:${c.unread_count}:${onlineTokens.has(c.contact_token)}`)
+    list: latestContacts.map(c => `${c.contact_token}:${c.contact_name}:${c.last_message}:${c.last_message_at}:${c.unread_count}:${onlineTokens.has(c.contact_token)}`),
+    offline: usingOfflineCache
   });
   if (contactsSignature === lastContactsSignature) {
     return; // nada mudou, evita redesenhar e piscar a lista
@@ -1718,9 +1791,21 @@ async function loadConversation() {
     if (!(error.message && error.message.includes('token invalido'))) {
       showConnectionBanner(true);
     }
+    // sem internet: se ainda não mostrou nada nessa conversa, usa a última cópia salva
+    if (!selectedContact.isLegacy && lastRenderedSignature === '__none__') {
+      const cache = loadConversationCache(selectedContact.token);
+      if (cache) {
+        showOfflineBanner(cache.savedAt);
+        lastRenderedCount = cache.messages.length;
+        lastRenderedSignature = conversationSignature(cache.messages);
+        await renderMessages(cache.messages);
+      }
+    }
     return;
   }
   showConnectionBanner(false);
+  hideOfflineBanner();
+  if (!selectedContact.isLegacy) saveConversationCache(selectedContact.token, data || []);
   const isNewCount = data && data.length !== lastRenderedCount;
   const newSignature = conversationSignature(data);
   const contentChanged = newSignature !== lastRenderedSignature;
